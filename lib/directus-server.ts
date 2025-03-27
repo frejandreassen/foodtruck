@@ -263,7 +263,7 @@ export const directusServer = {
    */
   async getSpaces(token: string) {
     return directusRequest<{ data: any[] }>(
-      "/items/spaces",
+      "/items/spaces?fields=*,time_slots.*",
       {
         headers: {
           "Content-Type": "application/json",
@@ -296,7 +296,7 @@ export const directusServer = {
    */
   async getSpace(id: string, token: string) {
     return directusRequest<{ data: any }>(
-      `/items/spaces/${id}`,
+      `/items/spaces/${id}?fields=*,time_slots.*`,
       {
         headers: {
           "Content-Type": "application/json",
@@ -344,7 +344,7 @@ export const directusServer = {
    */
   async getFoodTruckBookings(foodTruckId: string, token: string) {
     return directusRequest<{ data: any[] }>(
-      `/items/foodtruck_bookings?filter[foodtruck][_eq]=${foodTruckId}&sort=start`,
+      `/items/foodtruck_bookings?filter[foodtruck][_eq]=${foodTruckId}&sort=start&fields=*,space.*,foodtruck.*`,
       {
         headers: {
           "Content-Type": "application/json",

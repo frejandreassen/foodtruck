@@ -1,5 +1,5 @@
-import Image from "next/image"
 import { PasswordRequestForm } from "@/components/password-request-form"
+import { Soup } from "lucide-react"
 
 export default function PasswordRequestPage() {
   return (
@@ -7,14 +7,10 @@ export default function PasswordRequestPage() {
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="/" className="flex items-center gap-2 font-medium">
-            <Image 
-              src="/food-truck-logo.svg" 
-              alt="Food Truck Logo" 
-              width={32} 
-              height={32} 
-              className="h-8 w-8"
-            />
-            <span>Food Truck</span>
+            <div className="flex items-center gap-2">
+              <Soup size={24} className="text-primary" />
+              <span className="font-semibold">Food Truck App</span>
+            </div>
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">
@@ -25,7 +21,7 @@ export default function PasswordRequestPage() {
       </div>
       <div className="bg-muted relative hidden lg:block">
         <img
-          src="/placeholder.svg"
+          src="https://cms.falkenberg.se/wp-content/uploads/2023/01/annies-stuga-10-768x512.jpg"
           alt="Food Truck Login Image"
           className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
         />

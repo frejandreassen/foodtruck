@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (userResult.success) {
         setUser(userResult.data)
-        router.push("/")
+        // We'll handle redirect in the login form
       } else {
         throw new Error(userResult.error || "Failed to get user data")
       }
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await logoutAction()
       setUser(null)
-      router.push("/login")
+      // No need to redirect since we're already on the login page
     } catch (error) {
       console.error("Logout error:", error)
     }

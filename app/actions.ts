@@ -13,13 +13,13 @@ export async function login(email: string, password: string) {
     const response = await directusServer.login(email, password)
     
     // Set access token in a cookie
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     cookieStore.set('access_token', response.data.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      maxAge: 60 * 60, // 1 hour
     })
     
     cookieStore.set('refresh_token', response.data.refresh_token, {
@@ -27,7 +27,7 @@ export async function login(email: string, password: string) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: 60 * 60, // 1 hour
     })
     
     return { success: true, data: response.data }
@@ -122,7 +122,7 @@ export async function resetPassword(token: string, password: string) {
  */
 export async function getCurrentUser() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -146,7 +146,7 @@ export async function getCurrentUser() {
  */
 export async function getUserFoodTruck() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -174,7 +174,7 @@ export async function getUserFoodTruck() {
  */
 export async function updateFoodTruck(id: string, data: any) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -198,7 +198,7 @@ export async function updateFoodTruck(id: string, data: any) {
  */
 export async function uploadFoodTruckImage(formData: FormData) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -231,7 +231,7 @@ export async function uploadFoodTruckImage(formData: FormData) {
  */
 export async function getFoodTruckBookings(foodTruckId: string) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -259,7 +259,7 @@ export async function getFoodTruckBookings(foodTruckId: string) {
  */
 export async function getBookingRules() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -283,7 +283,7 @@ export async function getBookingRules() {
  */
 export async function getAllSpaces() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -307,7 +307,7 @@ export async function getAllSpaces() {
  */
 export async function getSpacesWithBookings(startDate: string, endDate: string) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -331,7 +331,7 @@ export async function getSpacesWithBookings(startDate: string, endDate: string) 
  */
 export async function getBookingsForDateRange(startDate: string, endDate: string) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -366,7 +366,7 @@ export async function createBooking(bookingData: {
   end: string;
 }) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {
@@ -398,7 +398,7 @@ export async function createBooking(bookingData: {
     }
     
     // Filter to future bookings only
-    const futureBookings = bookingsResult.data.filter((booking: any) => {
+    const futureBookings = (bookingsResult.data || []).filter((booking: any) => {
       return new Date(booking.start) > now
     })
     
@@ -444,7 +444,7 @@ export async function createBooking(bookingData: {
  */
 export async function refreshToken() {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const refreshToken = cookieStore.get('refresh_token')?.value
     
     if (!refreshToken) {
@@ -459,7 +459,7 @@ export async function refreshToken() {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      maxAge: 60 * 60, // 1 hour
     })
     
     cookieStore.set('refresh_token', response.data.refresh_token, {
@@ -467,7 +467,7 @@ export async function refreshToken() {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       path: '/',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
+      maxAge: 60 * 60, // 1 hour
     })
     
     return { success: true, data: response.data }
@@ -484,7 +484,7 @@ export async function refreshToken() {
  * Logout user
  */
 export async function logout() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   
   // Clear cookies
   cookieStore.delete('access_token')
@@ -498,7 +498,7 @@ export async function logout() {
  */
 export async function cancelBooking(bookingId: string) {
   try {
-    const cookieStore = cookies()
+    const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
     
     if (!token) {

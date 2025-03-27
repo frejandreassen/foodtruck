@@ -1,5 +1,5 @@
-import Image from "next/image"
 import { LoginForm } from "@/components/login-form"
+import { Soup } from "lucide-react"
 
 export default function LoginPage() {
   return (
@@ -7,14 +7,10 @@ export default function LoginPage() {
       <div className="flex flex-col gap-4 p-6 md:p-10">
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="/" className="flex items-center gap-2 font-medium">
-            <Image 
-              src="/food-truck-logo.svg" 
-              alt="Food Truck Logo" 
-              width={32} 
-              height={32} 
-              className="h-8 w-8"
-            />
-            <span>Food Truck</span>
+            <div className="flex items-center gap-2">
+              <Soup size={24} className="text-primary" />
+              <span className="font-semibold">Food Truck App</span>
+            </div>
           </a>
         </div>
         <div className="flex flex-1 items-center justify-center">

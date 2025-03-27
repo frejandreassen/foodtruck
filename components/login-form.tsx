@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent } from "@/components/ui/card"
 
 export function LoginForm({
   className,
@@ -16,7 +17,7 @@ export function LoginForm({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
-  const { login } = useAuth()
+  const { login, user, logout, isAuthenticated } = useAuth()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,16 +28,60 @@ export function LoginForm({
 
     try {
       await login(email, password)
-      // Redirect will be handled by the auth context
+      // Redirect to dashboard after login
+      router.push("/dashboard")
     } catch (err) {
       console.error("Login error:", err)
       setError(err instanceof Error ? err.message : "An error occurred")
+    } finally {
       setIsLoading(false)
     }
   }
 
   function handleForgotPassword() {
     router.push("/auth/password-request")
+  }
+
+  function handleLogout() {
+    logout()
+  }
+
+  // If user is authenticated, show user information instead of login form
+  if (isAuthenticated && user) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h1 className="text-2xl font-bold">Welcome!</h1>
+          <p className="text-muted-foreground text-sm text-balance">
+            You are logged in as {user.email}
+          </p>
+        </div>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div>
+                <span className="font-medium">Email:</span> {user.email}
+              </div>
+              {user.first_name && (
+                <div>
+                  <span className="font-medium">First Name:</span> {user.first_name}
+                </div>
+              )}
+              {user.last_name && (
+                <div>
+                  <span className="font-medium">Last Name:</span> {user.last_name}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Button variant="outline" onClick={handleLogout} className="w-full">
+          Logout
+        </Button>
+      </div>
+    )
   }
 
   return (

@@ -6,7 +6,7 @@ import { clientEnv } from "@/lib/env"
 export function EnvProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Make environment variables available globally
-    window.ENV = {
+    ;(window as any).ENV = {
       DIRECTUS_URL: clientEnv.DIRECTUS_URL,
       APP_URL: clientEnv.APP_URL
     }

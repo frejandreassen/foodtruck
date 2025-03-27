@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { addDays, startOfWeek, format, addWeeks, isSameDay } from "date-fns"
+import { addDays, startOfWeek, format, addWeeks, isSameDay, endOfWeek } from "date-fns"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface DateRangePickerProps {
@@ -21,11 +21,14 @@ export function DateRangePicker({
 }: DateRangePickerProps) {
   const [weekOffset, setWeekOffset] = useState(0)
   
-  // Get the current week's start date (Sunday)
+  // Get the current week's start date (Monday)
   const baseStartOfWeek = startOfWeek(new Date(), { weekStartsOn: 1 }) // Start on Monday
   
   // Calculate visible week start based on offset
   const visibleWeekStart = addWeeks(baseStartOfWeek, weekOffset)
+  
+  // Calculate visible week end (Sunday)
+  const visibleWeekEnd = endOfWeek(visibleWeekStart, { weekStartsOn: 1 })
   
   // Generate array of dates for the week
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(visibleWeekStart, i))
@@ -45,43 +48,58 @@ export function DateRangePicker({
     return isSameDay(date, new Date())
   }
   
+  useEffect(() => {
+    // When weekOffset changes, update the date range to show the complete week
+    // But only if the start or end dates are different from what we already have
+    if (!isSameDay(startDate, visibleWeekStart) || !isSameDay(endDate, visibleWeekEnd)) {
+      onChange(visibleWeekStart, visibleWeekEnd)
+    }
+  }, [weekOffset, onChange, visibleWeekStart, visibleWeekEnd, startDate, endDate])
+  
+  const handlePrevWeek = () => {
+    if (weekOffset > 0) {
+      setWeekOffset(prev => prev - 1)
+    }
+  }
+  
+  const handleNextWeek = () => {
+    if (canSelectNextWeek()) {
+      setWeekOffset(prev => prev + 1)
+    }
+  }
+  
   const handleDateClick = (date: Date) => {
     if (date > addDays(new Date(), maxDaysAhead)) return // Don't allow dates beyond max allowed
     
-    // If clicking the same date or a date in the selected range
-    if (isSelectedDate(date)) {
-      // Just select this single date
-      onChange(date, date)
-    } else if (date < startDate) {
-      // If clicking before current start, set as new start
-      onChange(date, endDate)
-    } else {
-      // If clicking after current end, set as new end
-      onChange(startDate, date)
-    }
+    // Always select the entire week
+    const clickedWeekStart = startOfWeek(date, { weekStartsOn: 1 })
+    const clickedWeekEnd = endOfWeek(date, { weekStartsOn: 1 })
+    onChange(clickedWeekStart, clickedWeekEnd)
   }
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-md font-semibold">Select Date Range</CardTitle>
+          <CardTitle className="text-md font-semibold">Week of {format(visibleWeekStart, 'MMM d')}</CardTitle>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setWeekOffset(prev => Math.max(prev - 1, 0))}
+              onClick={handlePrevWeek}
               disabled={weekOffset === 0}
               className="h-8 w-8"
+              aria-label="Previous week"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setWeekOffset(prev => prev + 1)}
+              onClick={handleNextWeek}
               disabled={!canSelectNextWeek()}
               className="h-8 w-8"
+              aria-label="Next week"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -119,7 +137,7 @@ export function DateRangePicker({
           })}
         </div>
         <div className="mt-3 text-sm text-muted-foreground text-center">
-          {format(startDate, 'MMM d, yyyy')} – {format(endDate, 'MMM d, yyyy')}
+          {format(startDate, 'MMM d')} – {format(endDate, 'MMM d, yyyy')} (Monday–Sunday)
         </div>
       </CardContent>
     </Card>
