@@ -14,14 +14,11 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { Soup, Home, User, KeyRound, LogOut, Calendar, MapPin, List } from "lucide-react"
+import { Soup, Home, User, KeyRound, LogOut, Calendar, MapPin, List, Menu } from "lucide-react"
 
-interface AppSidebarProps {
-  openMobile?: boolean;
-  setOpenMobile?: (open: boolean) => void;
-}
+interface AppSidebarProps {}
 
-export function AppSidebar({ openMobile, setOpenMobile }: AppSidebarProps) {
+export function AppSidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const { user, logout } = useAuth()
@@ -57,7 +54,6 @@ export function AppSidebar({ openMobile, setOpenMobile }: AppSidebarProps) {
           </div>
           <SidebarTrigger 
             className="flex h-8 w-8 bg-muted hover:bg-muted-foreground/10" 
-            onClick={() => sidebarContext?.isMobile && setOpenMobile && setOpenMobile(false)}
           />
         </div>
       </SidebarHeader>

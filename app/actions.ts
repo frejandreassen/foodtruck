@@ -426,10 +426,28 @@ export async function createBooking(bookingData: {
       return new Date(booking.start) > now
     })
     
-    if (futureBookings.length >= rules.maximum_future_bookings) {
+    // Extract booking time from the incoming booking
+    const bookingStart = new Date(bookingData.start)
+    
+    // Check if this is a last-minute booking (within the configured hours)
+    const hoursUntilBooking = (bookingStart.getTime() - now.getTime()) / (1000 * 60 * 60)
+    const isLastMinuteBooking = hoursUntilBooking <= rules.last_minute_booking_hours
+    
+    console.log("Booking check:", {
+      now: now.toISOString(),
+      bookingStart: bookingStart.toISOString(),
+      hoursUntilBooking,
+      lastMinuteThreshold: rules.last_minute_booking_hours,
+      isLastMinuteBooking,
+      futureBookingsCount: futureBookings.length,
+      maxBookings: rules.maximum_future_bookings
+    })
+    
+    // Only apply the maximum booking limit if this is NOT a last-minute booking
+    if (futureBookings.length >= rules.maximum_future_bookings && !isLastMinuteBooking) {
       return { 
         success: false, 
-        error: `You already have ${rules.maximum_future_bookings} future bookings, which is the maximum allowed` 
+        error: `You already have ${rules.maximum_future_bookings} future bookings, which is the maximum allowed. You can still make last-minute bookings (within ${rules.last_minute_booking_hours} hours of the start time).` 
       }
     }
     

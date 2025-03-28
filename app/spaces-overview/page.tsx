@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Soup, MapPin, PanelLeftIcon } from "lucide-react"
+import { Soup, MapPin, PanelLeftIcon, Menu } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { getAllSpaces } from "@/app/actions"
 import SpacesMap from "@/components/spaces-map"
@@ -18,7 +19,6 @@ export default function SpacesOverviewPage() {
   const [spaces, setSpaces] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
-  const [openMobileMenu, setOpenMobileMenu] = useState(false)
   // No need to track selected space state anymore
 
   // Default center for the map (Falkenberg, Sweden)
@@ -70,16 +70,9 @@ export default function SpacesOverviewPage() {
     <ProtectedRoute>
       <SidebarProvider defaultOpen={true}>
         <div className="flex h-screen w-full relative">
-          <AppSidebar openMobile={openMobileMenu} setOpenMobile={setOpenMobileMenu} />
+          <AppSidebar />
           <div className="flex-1 p-4 md:p-6 overflow-auto w-full">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="md:hidden fixed top-4 left-4 z-40" 
-              onClick={() => setOpenMobileMenu(true)}
-            >
-              <PanelLeftIcon className="h-4 w-4" />
-            </Button>
+            <CustomSidebarTrigger />
             <header className="flex justify-between items-center mb-8">
               <div>
                 <div className="flex items-center gap-2">

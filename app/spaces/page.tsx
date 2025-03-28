@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Soup, MapPin, Clock, Search, Calendar, ArrowRight } from "lucide-react"
+import { Soup, MapPin, Clock, Search, Calendar, ArrowRight, Menu } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { getAllSpaces } from "@/app/actions"
 
@@ -88,6 +89,7 @@ export default function SpacesListPage() {
         <div className="flex h-screen w-full">
           <AppSidebar />
           <div className="flex-1 p-4 md:p-6 overflow-auto w-full">
+            <CustomSidebarTrigger />
             <header className="flex justify-between items-center mb-8">
               <div>
                 <div className="flex items-center gap-2">

@@ -17,10 +17,11 @@ import {
 } from "@/components/ui/dialog"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BookingList } from "@/components/booking-list"
 import { getUserFoodTruck, getFoodTruckBookings, cancelBooking, getBookingRules } from "@/app/actions"
-import { Soup, PlusCircle, Calendar, Clock, MapPin, AlertCircle, PanelLeftIcon } from "lucide-react"
+import { Soup, PlusCircle, Calendar, Clock, MapPin, AlertCircle, PanelLeftIcon, Menu } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { BookingRules } from "@/components/booking-rules"
 
@@ -42,7 +43,6 @@ export default function Dashboard() {
     last_minute_booking_hours: number;
   }>(null)
   const [loadingRules, setLoadingRules] = useState(true)
-  const [openMobileMenu, setOpenMobileMenu] = useState(false)
 
   // Format time in HH:MM format - using actual time values from string
   const formatTime = (dateStr: string) => {
@@ -160,16 +160,9 @@ export default function Dashboard() {
     <ProtectedRoute>
       <SidebarProvider defaultOpen={true}>
         <div className="flex h-screen w-full relative">
-          <AppSidebar openMobile={openMobileMenu} setOpenMobile={setOpenMobileMenu} />
+          <AppSidebar />
           <div className="flex-1 p-4 md:p-6 overflow-auto w-full">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="md:hidden fixed top-4 left-4 z-40" 
-              onClick={() => setOpenMobileMenu(true)}
-            >
-              <PanelLeftIcon className="h-4 w-4" />
-            </Button>
+            <CustomSidebarTrigger />
             <header className="flex justify-between items-center mb-8">
               <div>
                 <div className="flex items-center gap-2">
