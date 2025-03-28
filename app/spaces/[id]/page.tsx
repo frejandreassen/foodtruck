@@ -2,24 +2,44 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
+import { format, addDays } from "date-fns"
 import { ProtectedRoute } from "@/components/protected-route"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Soup, MapPin, Clock, Calendar, ChevronLeft, ListChecks, Menu, Home, User, List } from "lucide-react"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { Soup, MapPin, Clock, Calendar as CalendarIcon, ChevronLeft, ListChecks, Menu, Home, User, List, Check, X, AlertCircle, CircleCheck } from "lucide-react"
+import { BookingConfirmationModal } from "@/components/booking-confirmation-modal"
+import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
-import { getAllSpaces } from "@/app/actions"
+import { 
+  getAllSpaces, 
+  getUserFoodTruck, 
+  getBookingsForDateRange,
+  createBooking,
+  getBookingRules,
+  getFoodTruckBookings
+} from "@/app/actions"
 import SpacesMap from "@/components/spaces-map"
 
 export default function SpaceDetailsPage() {
   const params = useParams<{id: string}>()
   const { user, logout } = useAuth()
   const router = useRouter()
+  const { toast } = useToast()
   const [space, setSpace] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [date, setDate] = useState<Date>(new Date())
+  const [bookings, setBookings] = useState<any[]>([])
+  const [userFoodTruck, setUserFoodTruck] = useState<any>(null)
+  const [bookingRules, setBookingRules] = useState<any>(null)
+  const [showBookingConfirm, setShowBookingConfirm] = useState(false)
+  const [bookingTimeSlot, setBookingTimeSlot] = useState<any>(null)
+  const [isBooking, setIsBooking] = useState(false)
 
   const loadSpaceDetails = async () => {
     setIsLoading(true)
@@ -84,11 +104,371 @@ export default function SpaceDetailsPage() {
     return { lat: 56.9055, lng: 12.4912 }
   }
 
+  // Load bookings for the selected date
+  const loadBookingsForDate = async (selectedDate: Date) => {
+    if (!space) return
+
+    try {
+      // Create start and end date for the selected day
+      const startDate = new Date(selectedDate)
+      startDate.setHours(0, 0, 0, 0)
+      
+      const endDate = new Date(selectedDate)
+      endDate.setHours(23, 59, 59, 999)
+      
+      // Load bookings for the date range
+      const bookingsResult = await getBookingsForDateRange(
+        startDate.toISOString(), 
+        endDate.toISOString()
+      )
+
+      if (bookingsResult.success) {
+        setBookings(bookingsResult.data || [])
+      } else if (bookingsResult.error) {
+        console.error("Error loading bookings:", bookingsResult.error)
+      }
+    } catch (err) {
+      console.error("Error loading booking data:", err)
+    }
+  }
+
+  // Check if a time slot is booked for the current space
+  const isTimeSlotBooked = (timeSlot: any) => {
+    if (!bookings || !bookings.length || !space) return false
+
+    const formatTimeString = (timeStr: string) => {
+      return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
+    }
+
+    const timeSlotStart = new Date(date)
+    const formattedStart = formatTimeString(timeSlot.start)
+    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
+    timeSlotStart.setHours(startHours, startMinutes, 0, 0)
+
+    const timeSlotEnd = new Date(date)
+    const formattedEnd = formatTimeString(timeSlot.end)
+    const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
+    timeSlotEnd.setHours(endHours, endMinutes, 0, 0)
+
+    return bookings.some(booking => {
+      try {
+        if (!booking || !booking.start || !booking.end || !booking.space) {
+          return false
+        }
+
+        if (booking.space.id !== space.id) {
+          return false
+        }
+
+        const bookingStart = new Date(booking.start)
+        const bookingEnd = new Date(booking.end)
+
+        // Booking overlaps if it starts before the slot ends
+        // AND ends after the slot starts
+        return bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
+      } catch (error) {
+        console.error("Error processing booking in isTimeSlotBooked:", error, booking)
+        return false
+      }
+    })
+  }
+
+  // Get booking details for a time slot
+  const getBookingDetails = (timeSlot: any) => {
+    if (!bookings || !bookings.length || !space) return null
+
+    const formatTimeString = (timeStr: string) => {
+      return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
+    }
+
+    const timeSlotStart = new Date(date)
+    const formattedStart = formatTimeString(timeSlot.start)
+    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
+    timeSlotStart.setHours(startHours, startMinutes, 0, 0)
+
+    const timeSlotEnd = new Date(date)
+    const formattedEnd = formatTimeString(timeSlot.end)
+    const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
+    timeSlotEnd.setHours(endHours, endMinutes, 0, 0)
+
+    return bookings.find(booking => {
+      try {
+        if (!booking || !booking.start || !booking.end || !booking.space) {
+          return false
+        }
+
+        if (booking.space.id !== space.id) {
+          return false
+        }
+
+        const bookingStart = new Date(booking.start)
+        const bookingEnd = new Date(booking.end)
+
+        return bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
+      } catch (error) {
+        console.error("Error processing booking in getBookingDetails:", error, booking)
+        return false
+      }
+    })
+  }
+
+  // Check if a booking is within the last-minute booking window
+  const isLastMinuteBooking = (timeSlot: any): boolean => {
+    if (!bookingRules || !timeSlot || !timeSlot.start) return false
+    
+    try {
+      const formatTimeString = (timeStr: string) => {
+        return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
+      }
+  
+      // Create a date object from the selected date
+      const timeSlotStart = new Date(date)
+      
+      // Format the time string and extract hours and minutes
+      const formattedStart = formatTimeString(timeSlot.start)
+      const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
+      
+      // Set the hours and minutes on the date object
+      timeSlotStart.setHours(startHours, startMinutes, 0, 0)
+      
+      const now = new Date()
+      
+      // Calculate hours until booking
+      const hoursUntilBooking = (timeSlotStart.getTime() - now.getTime()) / (1000 * 60 * 60)
+      
+      console.log("Last-minute check:", {
+        timeSlot,
+        date: date.toISOString(),
+        timeSlotStart: timeSlotStart.toISOString(),
+        now: now.toISOString(),
+        hoursUntilBooking,
+        lastMinuteThreshold: bookingRules.last_minute_booking_hours,
+        isLastMinute: hoursUntilBooking <= bookingRules.last_minute_booking_hours
+      })
+      
+      // If the booking is within the last-minute window, return true
+      return hoursUntilBooking <= bookingRules.last_minute_booking_hours
+    } catch (error) {
+      console.error("Error in isLastMinuteBooking:", error)
+      return false
+    }
+  }
+
+  // State to store all future bookings for the user's food truck
+  const [allFutureBookingsCount, setAllFutureBookingsCount] = useState(0)
+  
+  // Load all future bookings for the user's food truck
+  const loadAllFutureBookings = async () => {
+    if (!userFoodTruck) return
+    
+    try {
+      const result = await getFoodTruckBookings(userFoodTruck.id)
+      if (result.success && result.data) {
+        // Filter to just future bookings
+        const now = new Date()
+        const futureBookings = result.data.filter((booking: any) => {
+          return new Date(booking.start) > now
+        })
+        setAllFutureBookingsCount(futureBookings.length)
+      }
+    } catch (error) {
+      console.error("Error loading all future bookings:", error)
+    }
+  }
+  
+  // Get the count of future bookings for the user
+  const getFutureBookingsCount = (): number => {
+    // Return the pre-fetched count of all future bookings
+    return allFutureBookingsCount
+  }
+  
+  // Check if user has reached maximum bookings
+  const hasReachedMaxBookings = (): boolean => {
+    if (!userFoodTruck || !bookingRules) return false
+    
+    return allFutureBookingsCount >= bookingRules.maximum_future_bookings
+  }
+
+  // Start the booking process
+  const handleBookSpace = (timeSlot: any) => {
+    if (!userFoodTruck) {
+      toast({
+        title: "Food truck not found",
+        description: "You need a registered food truck to make bookings",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    if (!space) {
+      toast({
+        title: "Space not found",
+        description: "Unable to book this space",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setBookingTimeSlot(timeSlot)
+    setShowBookingConfirm(true)
+  }
+
+  // Create the actual booking
+  const confirmBooking = async () => {
+    if (!userFoodTruck || !space || !bookingTimeSlot || !date) {
+      toast({
+        title: "Error",
+        description: "Missing required information for booking",
+        variant: "destructive"
+      })
+      return
+    }
+    
+    setIsBooking(true)
+    
+    try {
+      // Format of time_slots can be "08:00:00" or "08:00"
+      const formatTimeString = (timeStr: string) => {
+        return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
+      }
+      
+      // Get the selected day and use consistent local time for both booking and last-minute check
+      const selectedDay = new Date(date)
+      console.log("Selected day for booking:", selectedDay.toISOString())
+      
+      const formattedStart = formatTimeString(bookingTimeSlot.start)
+      const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
+      
+      // First create dates in local time for consistency
+      const localStartDate = new Date(selectedDay)
+      localStartDate.setHours(startHours, startMinutes, 0, 0)
+      console.log("Local start date:", localStartDate.toISOString())
+      
+      // Then convert to UTC for API calls
+      const startDate = new Date(Date.UTC(
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        startHours,
+        startMinutes,
+        0
+      ))
+      console.log("UTC start date:", startDate.toISOString())
+      
+      const formattedEnd = formatTimeString(bookingTimeSlot.end)
+      const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
+      
+      // Also create local end date
+      const localEndDate = new Date(selectedDay)
+      localEndDate.setHours(endHours, endMinutes, 0, 0)
+      console.log("Local end date:", localEndDate.toISOString())
+      
+      // Then convert to UTC for API calls
+      const endDate = new Date(Date.UTC(
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        endHours,
+        endMinutes,
+        0
+      ))
+      console.log("UTC end date:", endDate.toISOString())
+      
+      // Create booking data
+      const bookingData = {
+        foodtruck: userFoodTruck.id,
+        space: space.id,
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
+      }
+      
+      // Call the createBooking action
+      const result = await createBooking(bookingData)
+      
+      if (result.success) {
+        toast({
+          title: "Booking confirmed!",
+          description: `You have booked ${space.name} for ${bookingTimeSlot.description || `${bookingTimeSlot.start} - ${bookingTimeSlot.end}`} on ${format(date, "MMMM do, yyyy")}`,
+          variant: "default"
+        })
+        
+        // Close the confirmation dialog and refresh the bookings
+        setShowBookingConfirm(false)
+        
+        // Refresh the bookings for the current date
+        loadBookingsForDate(date)
+        
+        // Refresh all future bookings count
+        loadAllFutureBookings()
+        
+        // Increment the counter immediately for better UX
+        setAllFutureBookingsCount(prev => prev + 1)
+      } else if (result.error) {
+        toast({
+          title: "Booking failed",
+          description: result.error,
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error("Booking error:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      })
+    } finally {
+      setIsBooking(false)
+    }
+  }
+
+  // Cancel the booking process (dialog)
+  const cancelBooking = () => {
+    setShowBookingConfirm(false)
+    setBookingTimeSlot(null)
+  }
+
+  // Load user's food truck and booking rules
+  const loadUserData = async () => {
+    try {
+      // Get user's food truck
+      const result = await getUserFoodTruck()
+      if (result.success && result.data) {
+        setUserFoodTruck(result.data)
+      }
+      
+      // Get booking rules
+      const rulesResult = await getBookingRules()
+      if (rulesResult.success && rulesResult.data) {
+        setBookingRules(rulesResult.data)
+      }
+    } catch (err) {
+      console.error("Error loading user data:", err)
+    }
+  }
+
   // Load data on component mount
   useEffect(() => {
     loadSpaceDetails()
+    loadUserData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
+  
+  // Load all future bookings when userFoodTruck becomes available
+  useEffect(() => {
+    if (userFoodTruck && userFoodTruck.id) {
+      loadAllFutureBookings()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userFoodTruck])
+
+  // Load bookings when date or space changes
+  useEffect(() => {
+    if (space) {
+      loadBookingsForDate(date)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, space])
 
   return (
     <ProtectedRoute>
@@ -96,11 +476,12 @@ export default function SpaceDetailsPage() {
         <div className="flex h-screen w-full">
           <AppSidebar />
           <div className="flex-1 p-4 md:p-6 overflow-auto w-full">
+            <CustomSidebarTrigger />
             <header className="flex justify-between items-center mb-8">
               <div className="flex items-center gap-2">
                 <Soup size={24} className="text-primary mr-2" />
                 <div>
-                  <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <h1 className="text-2xl font-bold flex items-center gap-2 hidden lg:block">
                     <Button 
                       variant="ghost" 
                       size="icon" 
@@ -112,7 +493,7 @@ export default function SpaceDetailsPage() {
                     </Button>
                     {isLoading ? "Loading..." : space?.name || "Space Not Found"}
                   </h1>
-                  <p className="text-muted-foreground">View space details and availability</p>
+                  <p className="text-muted-foreground hidden lg:block">View space details and availability</p>
                 </div>
               </div>
               
@@ -128,7 +509,7 @@ export default function SpaceDetailsPage() {
                 <Button
                   onClick={() => router.push('/booking')}
                 >
-                  <Calendar className="mr-2 h-4 w-4" />
+                  <CalendarIcon className="mr-2 h-4 w-4" />
                   Book Space
                 </Button>
               </div>
@@ -204,42 +585,95 @@ export default function SpaceDetailsPage() {
 
                       <div>
                         <h4 className="font-medium flex items-center mb-2">
-                          <Clock className="mr-2 h-4 w-4" />
-                          Available Time Slots
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          Select Date
                         </h4>
-                        
-                        {space.time_slots && space.time_slots.length > 0 ? (
-                          <div className="space-y-2">
-                            {space.time_slots.map((slot: any, index: number) => (
-                              <div key={index} className="bg-muted p-3 rounded-md">
-                                <div className="font-medium">{slot.description}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {slot.start.substring(0, 5)} - {slot.end.substring(0, 5)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground">No defined time slots</p>
-                        )}
+                        <div className="flex justify-center">
+                          <CalendarComponent
+                            mode="single"
+                            selected={date}
+                            onSelect={(newDate) => newDate && setDate(newDate)}
+                            weekStartsOn={1}
+                            className="rounded-md border"
+                            disabled={{ 
+                              before: new Date(),
+                              after: bookingRules ? addDays(new Date(), bookingRules.maximum_days_ahead) : undefined 
+                            }}
+                          />
+                        </div>
+                        <p className="text-sm text-center mt-2 text-muted-foreground">
+                          {date ? (
+                            <>Showing availability for <strong>{format(date, "EEEE, MMMM do, yyyy")}</strong></>
+                          ) : (
+                            "Please select a date"
+                          )}
+                        </p>
                       </div>
 
                       <Separator />
 
                       <div>
                         <h4 className="font-medium flex items-center mb-2">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          Booking Information
+                          <Clock className="mr-2 h-4 w-4" />
+                          Time Slots
                         </h4>
                         
-                        {space.bookings ? (
+                        {space.time_slots && space.time_slots.length > 0 ? (
                           <div className="space-y-2">
-                            <p className="text-sm">
-                              <span className="font-medium">Total Bookings:</span> {space.bookings.length}
-                            </p>
+                            {space.time_slots.map((slot: any, index: number) => {
+                              const isBooked = isTimeSlotBooked(slot);
+                              const bookingDetails = isBooked ? getBookingDetails(slot) : null;
+                              
+                              return (
+                                <div 
+                                  key={index} 
+                                  className={`p-3 rounded-md flex justify-between items-center ${isBooked ? 'bg-gray-50' : 'bg-green-50'}`}
+                                >
+                                  <div>
+                                    <div className="font-medium">{slot.description || `Time Slot ${index + 1}`}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {slot.start.substring(0, 5)} - {slot.end.substring(0, 5)}
+                                    </div>
+                                    {isBooked && (
+                                      <div className="text-muted-foreground text-sm flex items-center">
+                                        <User size={12} className="mr-1" />
+                                        Booked by {bookingDetails?.foodtruck?.name || "Another food truck"}
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {!isBooked && (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleBookSpace(slot)}
+                                      variant={hasReachedMaxBookings() ? 
+                                        (isLastMinuteBooking(slot) ? "secondary" : "outline") 
+                                        : "default"}
+                                    >
+                                      {isLastMinuteBooking(slot) && hasReachedMaxBookings() ? (
+                                        <>
+                                          <Clock size={14} className="mr-1" />
+                                          Last-Minute
+                                        </>
+                                      ) : hasReachedMaxBookings() ? (
+                                        <>
+                                          <AlertCircle size={14} className="mr-1" />
+                                          View Status
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Check size={14} className="mr-1" />
+                                          Book
+                                        </>
+                                      )}
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         ) : (
-                          <p className="text-muted-foreground">No bookings information available</p>
+                          <p className="text-muted-foreground">No defined time slots</p>
                         )}
                       </div>
 
@@ -265,8 +699,9 @@ export default function SpaceDetailsPage() {
                       <Button
                         onClick={() => router.push('/booking')}
                         className="w-full"
+                        variant="outline"
                       >
-                        Book This Space
+                        View All Spaces
                       </Button>
                     </CardFooter>
                   </Card>
@@ -319,6 +754,22 @@ export default function SpaceDetailsPage() {
               </div>
             )}
           </div>
+
+          {/* Booking Confirmation Modal */}
+          <BookingConfirmationModal 
+            isOpen={showBookingConfirm}
+            onClose={cancelBooking}
+            onConfirm={confirmBooking}
+            isBooking={isBooking}
+            space={space}
+            foodTruck={userFoodTruck}
+            date={date}
+            timeSlot={bookingTimeSlot}
+            bookingRules={bookingRules}
+            futureBookings={getFutureBookingsCount()}
+            isLastMinuteBooking={isLastMinuteBooking}
+            hasReachedMaxBookings={hasReachedMaxBookings}
+          />
         </div>
       </SidebarProvider>
     </ProtectedRoute>
