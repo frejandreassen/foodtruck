@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation"
 import { ProtectedRoute } from "@/components/protected-route"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
+import { CustomSidebarTrigger } from "@/components/custom-sidebar-trigger"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Soup, Calendar as CalendarIcon, MapPin, User, Check, AlertCircle, X, PanelLeftIcon } from "lucide-react"
+import { Soup, Calendar as CalendarIcon, MapPin, User, Check, AlertCircle, X, PanelLeftIcon, Clock, CircleCheck, Menu } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import { 
@@ -45,7 +46,6 @@ export default function BookingPage() {
   }>(null)
   const [futureBookings, setFutureBookings] = useState(0)
   const [loadingRules, setLoadingRules] = useState(true)
-  const [openMobileMenu, setOpenMobileMenu] = useState(false)
 
   const loadBookingsForDate = async (selectedDate: Date) => {
     if (!selectedDate) return
@@ -281,28 +281,8 @@ export default function BookingPage() {
       return
     }
     
-    // If user is at max bookings, check if this is a last-minute booking
-    if (bookingRules && futureBookings >= bookingRules.maximum_future_bookings) {
-      // Calculate start time for this booking
-      const bookingStartDate = new Date(date || new Date())
-      const formattedStart = timeSlot.start.includes(':') ? 
-        timeSlot.start.split(':').slice(0, 2).join(':') : 
-        timeSlot.start
-      
-      const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
-      bookingStartDate.setHours(startHours, startMinutes, 0, 0)
-      
-      // If it's not a last-minute booking, don't allow it
-      if (!isLastMinuteBooking(bookingStartDate)) {
-        toast({
-          title: "Maximum bookings reached",
-          description: `You already have ${bookingRules.maximum_future_bookings} future bookings. You can only make last-minute bookings within ${bookingRules.last_minute_booking_hours} hours.`,
-          variant: "destructive"
-        })
-        return
-      }
-    }
-    
+    // Always open the booking dialog, even if at max bookings
+    // The dialog will show the appropriate status and disable the Confirm button if needed
     setBookingSpace(space)
     setBookingTimeSlot(timeSlot)
     setShowBookingConfirm(true)
@@ -411,16 +391,9 @@ export default function BookingPage() {
     <ProtectedRoute>
       <SidebarProvider defaultOpen={true}>
         <div className="flex h-screen w-full relative">
-          <AppSidebar openMobile={openMobileMenu} setOpenMobile={setOpenMobileMenu} />
+          <AppSidebar />
           <div className="flex-1 p-4 md:p-6 overflow-auto w-full">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="md:hidden fixed top-4 left-4 z-40" 
-              onClick={() => setOpenMobileMenu(true)}
-            >
-              <PanelLeftIcon className="h-4 w-4" />
-            </Button>
+            <CustomSidebarTrigger />
             <header className="flex justify-between items-center mb-8">
               <div>
                 <div className="flex items-center gap-2">
@@ -582,9 +555,64 @@ export default function BookingPage() {
                                         <Button
                                           size="sm"
                                           onClick={() => handleBookSpace(space, timeSlotWithId)}
+                                          variant={(() => {
+                                            // Check if we're at max bookings
+                                            if (bookingRules && futureBookings >= bookingRules.maximum_future_bookings) {
+                                              const bookingStartDate = new Date(date || new Date());
+                                              const formattedStart = timeSlotWithId.start.includes(':') ? 
+                                                timeSlotWithId.start.split(':').slice(0, 2).join(':') : 
+                                                timeSlotWithId.start;
+                                              
+                                              const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+                                              bookingStartDate.setHours(startHours, startMinutes, 0, 0);
+                                              
+                                              // If it's a last-minute booking, use secondary styling
+                                              if (isLastMinuteBooking(bookingStartDate)) {
+                                                return "secondary";
+                                              }
+                                              // If at max but not last-minute, use outline styling
+                                              return "outline";
+                                            }
+                                            // Default styling for normal bookings
+                                            return "default";
+                                          })()}
                                         >
-                                          <Check size={14} className="mr-1" />
-                                          Book
+                                          {(() => {
+                                            // Check if we're at max bookings
+                                            if (bookingRules && futureBookings >= bookingRules.maximum_future_bookings) {
+                                              const bookingStartDate = new Date(date || new Date());
+                                              const formattedStart = timeSlotWithId.start.includes(':') ? 
+                                                timeSlotWithId.start.split(':').slice(0, 2).join(':') : 
+                                                timeSlotWithId.start;
+                                              
+                                              const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+                                              bookingStartDate.setHours(startHours, startMinutes, 0, 0);
+                                              
+                                              // If it's a last-minute booking
+                                              if (isLastMinuteBooking(bookingStartDate)) {
+                                                return (
+                                                  <>
+                                                    <Clock size={14} className="mr-1" />
+                                                    Last-Minute
+                                                  </>
+                                                );
+                                              }
+                                              // If at max but not last-minute
+                                              return (
+                                                <>
+                                                  <AlertCircle size={14} className="mr-1" />
+                                                  View Status
+                                                </>
+                                              );
+                                            }
+                                            // Default for normal bookings
+                                            return (
+                                              <>
+                                                <Check size={14} className="mr-1" />
+                                                Book
+                                              </>
+                                            );
+                                          })()}
                                         </Button>
                                       )}
                                     </div>
@@ -657,6 +685,68 @@ export default function BookingPage() {
                   </div>
                 </div>
                 
+                {/* Booking status indicator */}
+                {(() => {
+                  // If we haven't reached max bookings, show a success indicator
+                  if (!bookingRules || futureBookings < bookingRules.maximum_future_bookings) {
+                    return (
+                      <div className="mt-4 p-4 rounded-md bg-green-50 border border-green-200">
+                        <div className="flex items-start gap-2">
+                          <CircleCheck className="h-5 w-5 text-green-500 mt-0.5" />
+                          <div>
+                            <p className="font-medium text-green-800">Booking available</p>
+                            <p className="text-sm text-green-600 mt-1">
+                              You can book this time slot
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // If at max bookings but it's a last-minute booking
+                  if (date && bookingTimeSlot) {
+                    const bookingStartDate = new Date(date);
+                    const formattedStart = bookingTimeSlot.start.includes(':') ? 
+                      bookingTimeSlot.start.split(':').slice(0, 2).join(':') : 
+                      bookingTimeSlot.start;
+                    
+                    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+                    bookingStartDate.setHours(startHours, startMinutes, 0, 0);
+                    
+                    if (isLastMinuteBooking(bookingStartDate)) {
+                      return (
+                        <div className="mt-4 p-4 rounded-md bg-blue-50 border border-blue-200">
+                          <div className="flex items-start gap-2">
+                            <Clock className="h-5 w-5 text-blue-500 mt-0.5" />
+                            <div>
+                              <p className="font-medium text-blue-800">Last-minute booking available</p>
+                              <p className="text-sm text-blue-600 mt-1">
+                                This booking is within the {bookingRules.last_minute_booking_hours} hour last-minute window, which allows you to exceed your maximum booking limit.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+                  
+                  // At max bookings and not a last-minute booking
+                  return (
+                    <div className="mt-4 p-4 rounded-md bg-amber-50 border border-amber-200">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-amber-800">Maximum bookings reached</p>
+                          <p className="text-sm text-amber-600 mt-1">
+                            You have reached your maximum of {bookingRules.maximum_future_bookings} future bookings. You can either cancel an existing booking or make a last-minute booking (within {bookingRules.last_minute_booking_hours} hours).
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="flex justify-end gap-3 mt-6">
                   <Button
                     variant="outline"
@@ -667,19 +757,80 @@ export default function BookingPage() {
                   </Button>
                   <Button 
                     onClick={confirmBooking}
-                    disabled={isBooking}
+                    disabled={(() => {
+                      // Disable if already booking
+                      if (isBooking) return true;
+                      
+                      // Disable if at booking limit and not a last-minute booking
+                      if (bookingRules && futureBookings >= bookingRules.maximum_future_bookings && date && bookingTimeSlot) {
+                        const bookingStartDate = new Date(date);
+                        const formattedStart = bookingTimeSlot.start.includes(':') ? 
+                          bookingTimeSlot.start.split(':').slice(0, 2).join(':') : 
+                          bookingTimeSlot.start;
+                        
+                        const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+                        bookingStartDate.setHours(startHours, startMinutes, 0, 0);
+                        
+                        return !isLastMinuteBooking(bookingStartDate);
+                      }
+                      
+                      return false;
+                    })()}
+                    variant={(() => {
+                      // Use secondary variant for last-minute bookings
+                      if (bookingRules && futureBookings >= bookingRules.maximum_future_bookings && date && bookingTimeSlot) {
+                        const bookingStartDate = new Date(date);
+                        const formattedStart = bookingTimeSlot.start.includes(':') ? 
+                          bookingTimeSlot.start.split(':').slice(0, 2).join(':') : 
+                          bookingTimeSlot.start;
+                        
+                        const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+                        bookingStartDate.setHours(startHours, startMinutes, 0, 0);
+                        
+                        if (isLastMinuteBooking(bookingStartDate)) {
+                          return "secondary";
+                        }
+                      }
+                      
+                      return "default";
+                    })()}
                   >
-                    {isBooking ? (
-                      <>
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="mr-2 h-4 w-4" />
-                        Confirm Booking
-                      </>
-                    )}
+                    {(() => {
+                      if (isBooking) {
+                        return (
+                          <>
+                            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-b-transparent"></div>
+                            Processing...
+                          </>
+                        );
+                      }
+                      
+                      if (bookingRules && futureBookings >= bookingRules.maximum_future_bookings && date && bookingTimeSlot) {
+                        const bookingStartDate = new Date(date);
+                        const formattedStart = bookingTimeSlot.start.includes(':') ? 
+                          bookingTimeSlot.start.split(':').slice(0, 2).join(':') : 
+                          bookingTimeSlot.start;
+                        
+                        const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+                        bookingStartDate.setHours(startHours, startMinutes, 0, 0);
+                        
+                        if (isLastMinuteBooking(bookingStartDate)) {
+                          return (
+                            <>
+                              <Clock className="mr-2 h-4 w-4" />
+                              Confirm Last-Minute Booking
+                            </>
+                          );
+                        }
+                      }
+                      
+                      return (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Confirm Booking
+                        </>
+                      );
+                    })()}
                   </Button>
                 </div>
                 
