@@ -193,6 +193,23 @@ export function BookingCalendar({
     // Get slot times using our memoized helper
     const { start: slotStart, end: slotEnd } = getSlotTimes(timeSlot, date)
     
+    // Special case for debugging - log info for specific time slots
+    if (timeSlot.start === "04:00" && timeSlot.end === "09:00") {
+      console.log("Checking 04:00-09:00 slot:", {
+        date: date.toISOString(),
+        slotStartISO: slotStart.toISOString(),
+        slotEndISO: slotEnd.toISOString()
+      })
+    }
+    
+    if (timeSlot.start === "09:00" && timeSlot.end === "21:00") {
+      console.log("Checking 09:00-21:00 slot:", {
+        date: date.toISOString(),
+        slotStartISO: slotStart.toISOString(),
+        slotEndISO: slotEnd.toISOString()
+      })
+    }
+    
     // Check if any booking overlaps with this time slot
     return bookings.some(booking => {
       if (booking.space.id !== spaceId) return false
@@ -200,11 +217,47 @@ export function BookingCalendar({
       const bookingStart = new Date(booking.start)
       const bookingEnd = new Date(booking.end)
       
-      // Check for overlap
-      return (
-        (bookingStart <= slotEnd && bookingEnd >= slotStart) ||
-        (slotStart <= bookingEnd && slotEnd >= bookingStart)
-      )
+      // Log bookings for debugging adjacent slots issue
+      if (timeSlot.start === "04:00" && timeSlot.end === "09:00") {
+        console.log("Checking booking for 04:00-09:00 slot:", {
+          bookingStart: bookingStart.toISOString(),
+          bookingEnd: bookingEnd.toISOString()
+        })
+      }
+      
+      // Precise overlap check using string comparison for exact minute accuracy
+      const slotStartTime = slotStart.toISOString().split('.')[0] // Format: "2023-04-25T09:00:00"
+      const slotEndTime = slotEnd.toISOString().split('.')[0]
+      const bookingStartTime = bookingStart.toISOString().split('.')[0]
+      const bookingEndTime = bookingEnd.toISOString().split('.')[0]
+      
+      // For debugging - if this is our special case slots
+      if (timeSlot.start === "04:00" && timeSlot.end === "09:00") {
+        console.log("Time strings:", {
+          slotStartTime,
+          slotEndTime,
+          bookingStartTime,
+          bookingEndTime,
+          isAdjacentStart: slotEndTime === bookingStartTime,
+          isAdjacentEnd: bookingEndTime === slotStartTime
+        })
+      }
+      
+      // Careful comparison - if slot end EXACTLY equals booking start, they don't overlap
+      // Similarly if booking end EXACTLY equals slot start, they don't overlap
+      if (slotEndTime === bookingStartTime || bookingEndTime === slotStartTime) {
+        return false
+      }
+      
+      // Standard overlap check
+      const hasOverlap = bookingStart < slotEnd && bookingEnd > slotStart
+      
+      // Log the decision for our debugging case
+      if (timeSlot.start === "04:00" && timeSlot.end === "09:00" && hasOverlap) {
+        console.log("04:00-09:00 slot is marked as booked due to overlap")
+      }
+      
+      return hasOverlap
     })
   }
   
@@ -232,11 +285,20 @@ export function BookingCalendar({
       const bookingStart = new Date(booking.start)
       const bookingEnd = new Date(booking.end)
       
-      // Check for overlap
-      return (
-        (bookingStart <= slotEnd && bookingEnd >= slotStart) ||
-        (slotStart <= bookingEnd && slotEnd >= bookingStart)
-      )
+      // Precise overlap check using string comparison for exact second accuracy
+      const slotStartTime = slotStart.toISOString().split('.')[0] // Format: "2023-04-25T09:00:00"
+      const slotEndTime = slotEnd.toISOString().split('.')[0]
+      const bookingStartTime = bookingStart.toISOString().split('.')[0]
+      const bookingEndTime = bookingEnd.toISOString().split('.')[0]
+      
+      // Careful comparison - if slot end EXACTLY equals booking start, they don't overlap
+      // Similarly if booking end EXACTLY equals slot start, they don't overlap
+      if (slotEndTime === bookingStartTime || bookingEndTime === slotStartTime) {
+        return false
+      }
+      
+      // Otherwise check for any overlap (using timestamps for comparison)
+      return (bookingStart < slotEnd && bookingEnd > slotStart)
     })
     
     return !!myBooking ? myBooking.id : false
@@ -254,11 +316,32 @@ export function BookingCalendar({
       const bookingStart = new Date(booking.start)
       const bookingEnd = new Date(booking.end)
       
-      // Check for overlap
-      return (
-        (bookingStart <= slotEnd && bookingEnd >= slotStart) ||
-        (slotStart <= bookingEnd && slotEnd >= bookingStart)
-      )
+      // Precise overlap check using string comparison for exact second accuracy
+      const slotStartTime = slotStart.toISOString().split('.')[0] // Format: "2023-04-25T09:00:00"
+      const slotEndTime = slotEnd.toISOString().split('.')[0]
+      const bookingStartTime = bookingStart.toISOString().split('.')[0]
+      const bookingEndTime = bookingEnd.toISOString().split('.')[0]
+      
+      // Debug output if this is the problematic 04:00-09:00 slot
+      if (timeSlot.start === "04:00" && timeSlot.end === "09:00") {
+        console.log("getBookingId - Time strings:", {
+          slotStartTime,
+          slotEndTime,
+          bookingStartTime,
+          bookingEndTime,
+          isAdjacentStart: slotEndTime === bookingStartTime,
+          isAdjacentEnd: bookingEndTime === slotStartTime
+        })
+      }
+      
+      // Careful comparison - if slot end EXACTLY equals booking start, they don't overlap
+      // Similarly if booking end EXACTLY equals slot start, they don't overlap
+      if (slotEndTime === bookingStartTime || bookingEndTime === slotStartTime) {
+        return false
+      }
+      
+      // Otherwise check for any overlap (using timestamps for comparison)
+      return (bookingStart < slotEnd && bookingEnd > slotStart)
     })
     
     return booking ? booking.id : null
@@ -276,11 +359,32 @@ export function BookingCalendar({
       const bookingStart = new Date(booking.start)
       const bookingEnd = new Date(booking.end)
       
-      // Check for overlap
-      return (
-        (bookingStart <= slotEnd && bookingEnd >= slotStart) ||
-        (slotStart <= bookingEnd && slotEnd >= bookingStart)
-      )
+      // Precise overlap check using string comparison for exact second accuracy
+      const slotStartTime = slotStart.toISOString().split('.')[0] // Format: "2023-04-25T09:00:00"
+      const slotEndTime = slotEnd.toISOString().split('.')[0]
+      const bookingStartTime = bookingStart.toISOString().split('.')[0]
+      const bookingEndTime = bookingEnd.toISOString().split('.')[0]
+      
+      // Debug output if this is the problematic 04:00-09:00 slot
+      if (timeSlot.start === "04:00" && timeSlot.end === "09:00") {
+        console.log("getBusinessName - Time strings:", {
+          slotStartTime,
+          slotEndTime,
+          bookingStartTime,
+          bookingEndTime,
+          isAdjacentStart: slotEndTime === bookingStartTime,
+          isAdjacentEnd: bookingEndTime === slotStartTime
+        })
+      }
+      
+      // Careful comparison - if slot end EXACTLY equals booking start, they don't overlap
+      // Similarly if booking end EXACTLY equals slot start, they don't overlap
+      if (slotEndTime === bookingStartTime || bookingEndTime === slotStartTime) {
+        return false
+      }
+      
+      // Otherwise check for any overlap (using timestamps for comparison)
+      return (bookingStart < slotEnd && bookingEnd > slotStart)
     })
     
     return booking?.foodtruck?.name || "Another vendor"
@@ -441,10 +545,24 @@ export function BookingCalendar({
           <div className="mt-4 grid gap-4 md:grid-cols-1 lg:grid-cols-2">
             {spaces.flatMap((space) => 
               TIME_SLOTS.map((timeSlot, timeSlotIndex) => {
+                // Debug information for time slots
+                if (timeSlot.start === "04:00" || timeSlot.start === "09:00") {
+                  console.log(`Checking slot availability for ${timeSlot.start}-${timeSlot.end}...`);
+                }
+                
                 const isBooked = isSlotBooked(space.id, timeSlot, selectedDate);
                 const isMyBooking = isSlotBookedByMe(space.id, timeSlot, selectedDate);
                 const bookingId = getBookingId(space.id, timeSlot, selectedDate);
                 const businessName = getBusinessName(space.id, timeSlot, selectedDate);
+                
+                // More debugging info for slot status
+                if (timeSlot.start === "04:00" || timeSlot.start === "09:00") {
+                  console.log(`Slot ${timeSlot.start}-${timeSlot.end} status:`, { 
+                    isBooked, 
+                    isMyBooking,
+                    bookingId
+                  });
+                }
                 
                 return (
                   <div

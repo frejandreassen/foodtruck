@@ -36,10 +36,10 @@ export function BookingList({
       day: "numeric"
     }).format(date)
     
-    // Format time as 24-hour format with leading zeros
-    const hours = date.getUTCHours().toString().padStart(2, '0')
-    const minutes = date.getUTCMinutes().toString().padStart(2, '0')
-    return `${day}, ${hours}:${minutes}`
+    // Extract time directly from ISO string for consistency 
+    // Format: 2023-04-25T09:00:00.000Z -> get 09:00 part
+    const timeComponent = dateStr.split('T')[1].substring(0, 5)
+    return `${day}, ${timeComponent}`
   }
 
   if (bookings.length === 0) {

@@ -44,12 +44,12 @@ export default function Dashboard() {
   const [loadingRules, setLoadingRules] = useState(true)
   const [openMobileMenu, setOpenMobileMenu] = useState(false)
 
-  // Format time in HH:MM format using UTC time
+  // Format time in HH:MM format - using actual time values from string
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const hours = String(date.getUTCHours()).padStart(2, '0')
-    const minutes = String(date.getUTCMinutes()).padStart(2, '0')
-    return `${hours}:${minutes}`
+    // Extract time directly from ISO string for consistency
+    // Format: 2023-04-25T09:00:00.000Z -> get 09:00 part
+    const timeComponent = dateStr.split('T')[1].substring(0, 5)
+    return timeComponent
   }
 
   async function loadData() {

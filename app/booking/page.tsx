@@ -172,89 +172,93 @@ export default function BookingPage() {
     }
   }, [date])
 
-  // Check if a space is booked for a specific time slot
   const isSpaceBooked = (spaceId: string, timeSlot: { start: string, end: string }) => {
-    if (!bookings || !bookings.length) return false
-    
-    // Format of time_slots can be "08:00:00" or "08:00"
+    if (!bookings || !bookings.length) return false;
+
     const formatTimeString = (timeStr: string) => {
-      return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
-    }
-    
-    const timeSlotStart = new Date(date || new Date())
-    const formattedStart = formatTimeString(timeSlot.start)
-    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
-    timeSlotStart.setHours(startHours, startMinutes, 0, 0)
-    
-    const timeSlotEnd = new Date(date || new Date())
-    const formattedEnd = formatTimeString(timeSlot.end)
-    const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
-    timeSlotEnd.setHours(endHours, endMinutes, 0, 0)
-    
+      return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr;
+    };
+
+    const timeSlotStart = new Date(date || new Date());
+    const formattedStart = formatTimeString(timeSlot.start);
+    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+    timeSlotStart.setHours(startHours, startMinutes, 0, 0);
+
+    const timeSlotEnd = new Date(date || new Date());
+    const formattedEnd = formatTimeString(timeSlot.end);
+    const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num));
+    timeSlotEnd.setHours(endHours, endMinutes, 0, 0);
+
     return bookings.some(booking => {
       try {
         if (!booking || !booking.start || !booking.end || !booking.space) {
-          return false
+          return false;
         }
-        
-        const bookingStart = new Date(booking.start)
-        const bookingEnd = new Date(booking.end)
-        
+
+        const bookingStart = new Date(booking.start);
+        const bookingEnd = new Date(booking.end);
+
+        // Ensure comparison happens correctly even across day boundaries if necessary
+        // This basic check assumes bookings and slots are within the same day context
+        // as handled by the date selection.
+
         return (
           booking.space.id === spaceId &&
           (
-            // Booking overlaps with time slot
-            (bookingStart <= timeSlotEnd && bookingEnd >= timeSlotStart)
+            // CORRECTED OVERLAP CHECK:
+            // Booking overlaps if it starts BEFORE the slot ends
+            // AND ends AFTER the slot starts.
+            // Using strict inequality prevents adjacent slots from being marked.
+            bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
           )
-        )
+        );
       } catch (error) {
-        console.error("Error processing booking:", error)
-        return false
+        console.error("Error processing booking in isSpaceBooked:", error, booking);
+        return false;
       }
-    })
-  }
+    });
+  };
 
   // Get booking details for a space and time slot
   const getBookingDetails = (spaceId: string, timeSlot: { start: string, end: string }) => {
-    if (!bookings || !bookings.length) return null
-    
-    // Format of time_slots can be "08:00:00" or "08:00"
+    if (!bookings || !bookings.length) return null;
+
     const formatTimeString = (timeStr: string) => {
-      return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
-    }
-    
-    const timeSlotStart = new Date(date || new Date())
-    const formattedStart = formatTimeString(timeSlot.start)
-    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
-    timeSlotStart.setHours(startHours, startMinutes, 0, 0)
-    
-    const timeSlotEnd = new Date(date || new Date())
-    const formattedEnd = formatTimeString(timeSlot.end)
-    const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
-    timeSlotEnd.setHours(endHours, endMinutes, 0, 0)
-    
+      return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr;
+    };
+
+    const timeSlotStart = new Date(date || new Date());
+    const formattedStart = formatTimeString(timeSlot.start);
+    const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num));
+    timeSlotStart.setHours(startHours, startMinutes, 0, 0);
+
+    const timeSlotEnd = new Date(date || new Date());
+    const formattedEnd = formatTimeString(timeSlot.end);
+    const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num));
+    timeSlotEnd.setHours(endHours, endMinutes, 0, 0);
+
     return bookings.find(booking => {
       try {
         if (!booking || !booking.start || !booking.end || !booking.space) {
-          return false
+          return false;
         }
-        
-        const bookingStart = new Date(booking.start)
-        const bookingEnd = new Date(booking.end)
-        
+
+        const bookingStart = new Date(booking.start);
+        const bookingEnd = new Date(booking.end);
+
         return (
           booking.space.id === spaceId &&
           (
-            // Booking overlaps with time slot
-            (bookingStart <= timeSlotEnd && bookingEnd >= timeSlotStart)
+            // CORRECTED OVERLAP CHECK (same as in isSpaceBooked):
+            bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
           )
-        )
+        );
       } catch (error) {
-        console.error("Error processing booking:", error)
-        return false
+        console.error("Error processing booking in getBookingDetails:", error, booking);
+        return false;
       }
-    })
-  }
+    });
+  };
 
   // Check if a booking is within the last-minute booking window
   const isLastMinuteBooking = (startTime: Date): boolean => {
@@ -323,16 +327,31 @@ export default function BookingPage() {
         return timeStr.includes(':') ? timeStr.split(':').slice(0, 2).join(':') : timeStr
       }
       
-      // Calculate date and time for booking
-      const startDate = new Date(date)
+      // Calculate date and time for booking in UTC
+      const selectedDay = new Date(date)
       const formattedStart = formatTimeString(bookingTimeSlot.start)
       const [startHours, startMinutes] = formattedStart.split(':').map(num => parseInt(num))
-      startDate.setHours(startHours, startMinutes, 0, 0)
+      // Create startDate using UTC to match how the calendar component creates dates
+      const startDate = new Date(Date.UTC(
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        startHours,
+        startMinutes,
+        0
+      ))
       
-      const endDate = new Date(date)
       const formattedEnd = formatTimeString(bookingTimeSlot.end)
       const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
-      endDate.setHours(endHours, endMinutes, 0, 0)
+      // Create endDate using UTC to match how the calendar component creates dates
+      const endDate = new Date(Date.UTC(
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        endHours,
+        endMinutes,
+        0
+      ))
       
       // Create booking data
       const bookingData = {

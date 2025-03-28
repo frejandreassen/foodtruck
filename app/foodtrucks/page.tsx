@@ -186,8 +186,8 @@ export default function FoodTrucksListPage() {
                       <CardTitle>{truck.name}</CardTitle>
                       {truck.description && (
                         <CardDescription>
-                          {truck.description.length > 100 
-                            ? `${truck.description.substring(0, 100)}...` 
+                          {truck.description.length > 200 
+                            ? `${truck.description.substring(0, 200)}...` 
                             : truck.description}
                         </CardDescription>
                       )}

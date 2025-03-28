@@ -196,8 +196,8 @@ export default function SpacesListPage() {
                       <CardTitle>{space.name}</CardTitle>
                       {space.description && (
                         <CardDescription>
-                          {space.description.length > 100 
-                            ? `${space.description.substring(0, 100)}...` 
+                          {space.description.length > 200 
+                            ? `${space.description.substring(0, 200)}...` 
                             : space.description}
                         </CardDescription>
                       )}

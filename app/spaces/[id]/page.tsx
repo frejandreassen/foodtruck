@@ -105,7 +105,7 @@ export default function SpaceDetailsPage() {
                       variant="ghost" 
                       size="icon" 
                       className="h-8 w-8"
-                      onClick={() => router.push('/spaces-list')}
+                      onClick={() => router.push('/spaces')}
                     >
                       <ChevronLeft className="h-5 w-5" />
                       <span className="sr-only">Back</span>

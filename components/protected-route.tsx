@@ -10,6 +10,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
+      // Save the current URL for redirecting back after login
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname + window.location.search
+        // Don't save login page itself to avoid redirect loops
+        if (currentPath !== '/login') {
+          sessionStorage.setItem('redirectAfterLogin', currentPath)
+        }
+      }
       router.push("/login")
     }
   }, [isAuthenticated, isLoading, router])

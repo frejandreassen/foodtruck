@@ -28,8 +28,20 @@ export function LoginForm({
 
     try {
       await login(email, password)
-      // Redirect to dashboard after login
-      router.push("/dashboard")
+      
+      // Check if there's a saved redirect path
+      let redirectPath = "/dashboard"
+      if (typeof window !== 'undefined') {
+        const savedPath = sessionStorage.getItem('redirectAfterLogin')
+        if (savedPath) {
+          redirectPath = savedPath
+          // Clear the saved path
+          sessionStorage.removeItem('redirectAfterLogin')
+        }
+      }
+      
+      // Redirect to saved path or dashboard
+      router.push(redirectPath)
     } catch (err) {
       console.error("Login error:", err)
       setError(err instanceof Error ? err.message : "An error occurred")
