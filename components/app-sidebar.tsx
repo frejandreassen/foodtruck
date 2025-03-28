@@ -16,7 +16,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Soup, Home, User, KeyRound, LogOut, Calendar, MapPin, List, Menu } from "lucide-react"
 
-interface AppSidebarProps {}
+// Sidebar component doesn't need props but might in the future
 
 export function AppSidebar() {
   const router = useRouter()
