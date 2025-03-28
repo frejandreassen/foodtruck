@@ -11,44 +11,45 @@ import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Soup, MapPin, Clock, Search, Calendar, ArrowRight } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { getAllSpaces } from "@/app/actions"
+import { getAllFoodTrucks } from "@/app/actions"
 
-export default function SpacesListPage() {
+export default function FoodTrucksListPage() {
   const { user, logout } = useAuth()
   const router = useRouter()
-  const [spaces, setSpaces] = useState<any[]>([])
-  const [filteredSpaces, setFilteredSpaces] = useState<any[]>([])
+  const [foodTrucks, setFoodTrucks] = useState<any[]>([])
+  const [filteredFoodTrucks, setFilteredFoodTrucks] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [openMobileMenu, setOpenMobileMenu] = useState(false)
 
-  const loadSpaces = async () => {
+  const loadFoodTrucks = async () => {
     setIsLoading(true)
     setError("")
     
     try {
-      const spacesResult = await getAllSpaces()
-      if (spacesResult.success) {
-        const spacesData = spacesResult.data || []
-        setSpaces(spacesData)
-        setFilteredSpaces(spacesData)
-      } else if (spacesResult.error) {
-        console.error("Error loading spaces:", spacesResult.error)
-        if (spacesResult.error.includes("Invalid email or password") || 
-            spacesResult.error.includes("Not authenticated")) {
+      const foodTrucksResult = await getAllFoodTrucks()
+      if (foodTrucksResult.success) {
+        const foodTrucksData = foodTrucksResult.data || []
+        setFoodTrucks(foodTrucksData)
+        setFilteredFoodTrucks(foodTrucksData)
+      } else if (foodTrucksResult.error) {
+        console.error("Error loading food trucks:", foodTrucksResult.error)
+        if (foodTrucksResult.error.includes("Invalid email or password") || 
+            foodTrucksResult.error.includes("Not authenticated")) {
           setError("Authentication error. Please log in again.")
         } else {
-          setError(`Failed to load spaces: ${spacesResult.error}`)
+          setError(`Failed to load food trucks: ${foodTrucksResult.error}`)
         }
       }
     } catch (err) {
-      console.error("Error loading spaces:", err)
+      console.error("Error loading food trucks:", err)
       if (err instanceof Error && 
           (err.message.includes("Invalid email or password") || 
            err.message.includes("Not authenticated"))) {
         setError("Authentication error. Please log in again.")
       } else {
-        setError("Failed to load spaces data")
+        setError("Failed to load food trucks data")
       }
     } finally {
       setIsLoading(false)
@@ -60,48 +61,43 @@ export default function SpacesListPage() {
     setSearchQuery(query)
     
     if (!query.trim()) {
-      setFilteredSpaces(spaces)
+      setFilteredFoodTrucks(foodTrucks)
       return
     }
     
-    const filtered = spaces.filter(space => 
-      space.name.toLowerCase().includes(query.toLowerCase()) ||
-      (space.description && space.description.toLowerCase().includes(query.toLowerCase()))
+    const filtered = foodTrucks.filter(truck => 
+      truck.name?.toLowerCase().includes(query.toLowerCase()) ||
+      (truck.description && truck.description.toLowerCase().includes(query.toLowerCase()))
     )
     
-    setFilteredSpaces(filtered)
-  }
-
-  // Handle view space details
-  const handleViewSpaceDetails = (spaceId: string | number) => {
-    router.push(`/spaces/${spaceId}`)
+    setFilteredFoodTrucks(filtered)
   }
 
   // Load data on component mount
   useEffect(() => {
-    loadSpaces()
+    loadFoodTrucks()
   }, [])
 
   return (
     <ProtectedRoute>
       <SidebarProvider>
         <div className="flex h-screen w-full">
-          <AppSidebar />
+          <AppSidebar openMobile={openMobileMenu} setOpenMobile={setOpenMobileMenu} />
           <div className="flex-1 p-4 md:p-6 overflow-auto w-full">
             <header className="flex justify-between items-center mb-8">
               <div>
                 <div className="flex items-center gap-2">
                   <Soup size={24} className="text-primary mr-2" />
-                  <h1 className="text-2xl font-bold">All Spaces</h1>
+                  <h1 className="text-2xl font-bold">Food Trucks</h1>
                 </div>
-                <p className="text-muted-foreground">Browse and view all available food truck spaces</p>
+                <p className="text-muted-foreground">View all registered food trucks</p>
               </div>
               <Button
-                onClick={() => router.push('/spaces-overview')}
+                onClick={() => router.push('/dashboard')}
                 className="hidden md:flex items-center"
               >
-                <MapPin className="mr-2 h-4 w-4" />
-                View Map
+                <Calendar className="mr-2 h-4 w-4" />
+                Dashboard
               </Button>
             </header>
 
@@ -112,7 +108,7 @@ export default function SpacesListPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={loadSpaces}
+                    onClick={loadFoodTrucks}
                   >
                     Try again
                   </Button>
@@ -137,7 +133,7 @@ export default function SpacesListPage() {
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Search spaces by name..."
+                  placeholder="Search food trucks by name..."
                   className="pl-8"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
@@ -149,12 +145,12 @@ export default function SpacesListPage() {
               <div className="flex justify-center items-center py-20">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
-            ) : filteredSpaces.length === 0 ? (
+            ) : filteredFoodTrucks.length === 0 ? (
               <div className="text-center py-12">
-                <MapPin className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No spaces found</h3>
+                <Soup className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No food trucks found</h3>
                 <p className="text-muted-foreground mb-6">
-                  {searchQuery ? "No spaces match your search criteria" : "There are no spaces available at the moment"}
+                  {searchQuery ? "No food trucks match your search criteria" : "There are no food trucks registered at the moment"}
                 </p>
                 {searchQuery && (
                   <Button
@@ -167,87 +163,62 @@ export default function SpacesListPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredSpaces.map(space => (
-                  <Card key={space.id} className="overflow-hidden">
+                {filteredFoodTrucks.map(truck => (
+                  <Card key={truck.id} className="overflow-hidden">
                     <div className="h-64 bg-muted relative overflow-hidden">
-                      {space.image ? (
+                      {truck.image ? (
                         <img 
-                          src={`${process.env.NEXT_PUBLIC_DIRECTUS_URL || 'https://cms.businessfalkenberg.se'}/assets/${space.image}`}
-                          alt={space.name}
+                          src={`${process.env.NEXT_PUBLIC_DIRECTUS_URL || 'https://cms.businessfalkenberg.se'}/assets/${truck.image}`}
+                          alt={truck.name}
                           className="absolute inset-0 w-full h-full object-cover object-center"
                           onError={(e) => {
                             // On error, replace with placeholder
-                            (e.target as HTMLImageElement).src = '/placeholder.svg';
+                            (e.target as HTMLImageElement).src = '/food-truck-logo.svg';
                           }}
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <MapPin className="h-16 w-16 text-muted-foreground" />
-                        </div>
-                      )}
-                      
-                      {space.location && space.location.coordinates && (
-                        <div className="absolute bottom-3 right-3 bg-background text-foreground px-2 py-1 rounded-md text-xs shadow-sm">
-                          {space.location.type || "Location"} Available
+                          <Soup className="h-16 w-16 text-muted-foreground" />
                         </div>
                       )}
                     </div>
                     <CardHeader className="pb-2">
-                      <CardTitle>{space.name}</CardTitle>
-                      {space.description && (
+                      <CardTitle>{truck.name}</CardTitle>
+                      {truck.description && (
                         <CardDescription>
-                          {space.description.length > 100 
-                            ? `${space.description.substring(0, 100)}...` 
-                            : space.description}
+                          {truck.description.length > 100 
+                            ? `${truck.description.substring(0, 100)}...` 
+                            : truck.description}
                         </CardDescription>
                       )}
                     </CardHeader>
                     <CardContent className="pb-2">
                       <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
-                          <div>
-                            <span className="text-sm font-medium">Time Slots:</span>
-                            {space.time_slots && space.time_slots.length > 0 ? (
-                              <ul className="text-sm text-muted-foreground mt-1">
-                                {space.time_slots.map((slot: any, index: number) => (
-                                  <li key={index}>
-                                    {slot.description}: {slot.start.substring(0, 5)} - {slot.end.substring(0, 5)}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-muted-foreground mt-1">No time slots defined</p>
-                            )}
+                        {truck.user && (
+                          <div className="flex items-start gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <div>
+                              <span className="text-sm font-medium">Owner:</span>
+                              <p className="text-sm text-muted-foreground">
+                                {truck.user.first_name} {truck.user.last_name}
+                              </p>
+                            </div>
                           </div>
-                        </div>
+                        )}
                         
-                        {space.bookings && (
+                        {truck.bookings && (
                           <div className="flex items-start gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground mt-0.5" />
                             <div>
                               <span className="text-sm font-medium">Bookings:</span>
                               <p className="text-sm text-muted-foreground">
-                                {space.bookings.length} existing bookings
+                                {truck.bookings.length} bookings
                               </p>
                             </div>
                           </div>
                         )}
                       </div>
                     </CardContent>
-                    <CardFooter className="pt-2">
-                      <div className="flex justify-end w-full">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="w-full md:w-auto"
-                          onClick={() => handleViewSpaceDetails(space.id)}
-                        >
-                          View Details
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardFooter>
                   </Card>
                 ))}
               </div>

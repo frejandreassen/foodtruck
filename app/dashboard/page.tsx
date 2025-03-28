@@ -44,6 +44,14 @@ export default function Dashboard() {
   const [loadingRules, setLoadingRules] = useState(true)
   const [openMobileMenu, setOpenMobileMenu] = useState(false)
 
+  // Format time in HH:MM format using UTC time
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const hours = String(date.getUTCHours()).padStart(2, '0')
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
   async function loadData() {
     setIsLoading(true)
     setError("")
@@ -360,7 +368,7 @@ export default function Dashboard() {
                                     </p>
                                     <p className="flex items-center">
                                       <Clock className="mr-2 h-4 w-4" />
-                                      {format(new Date(booking.start), "h:mm a")} - {format(new Date(booking.end), "h:mm a")}
+                                      {formatTime(booking.start)} - {formatTime(booking.end)}
                                     </p>
                                     <p className="flex items-center">
                                       <MapPin className="mr-2 h-4 w-4" />
@@ -418,7 +426,7 @@ export default function Dashboard() {
                                     </p>
                                     <p className="flex items-center">
                                       <Clock className="mr-2 h-4 w-4" />
-                                      {format(new Date(booking.start), "h:mm a")} - {format(new Date(booking.end), "h:mm a")}
+                                      {formatTime(booking.start)} - {formatTime(booking.end)}
                                     </p>
                                     <p className="flex items-center">
                                       <MapPin className="mr-2 h-4 w-4" />
@@ -471,7 +479,7 @@ export default function Dashboard() {
                       {format(new Date(bookingToCancel.start), "EEEE, MMMM d, yyyy")}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(bookingToCancel.start), "h:mm a")} - {format(new Date(bookingToCancel.end), "h:mm a")}
+                      {formatTime(bookingToCancel.start)} - {formatTime(bookingToCancel.end)}
                     </p>
                   </div>
                 </div>

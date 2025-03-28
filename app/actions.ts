@@ -303,6 +303,30 @@ export async function getAllSpaces() {
 }
 
 /**
+ * Get all food trucks
+ */
+export async function getAllFoodTrucks() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+    
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+    
+    const response = await directusServer.getFoodTrucks(token)
+    
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Get food trucks error:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to get food trucks' 
+    }
+  }
+}
+
+/**
  * Get spaces with bookings for a date range
  */
 export async function getSpacesWithBookings(startDate: string, endDate: string) {

@@ -30,13 +30,16 @@ export function BookingList({
 }: BookingListProps) {
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
-    return new Intl.DateTimeFormat("en-SE", {
+    const day = new Intl.DateTimeFormat("en-SE", {
       weekday: "short",
       month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
+      day: "numeric"
     }).format(date)
+    
+    // Format time as 24-hour format with leading zeros
+    const hours = date.getUTCHours().toString().padStart(2, '0')
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0')
+    return `${day}, ${hours}:${minutes}`
   }
 
   if (bookings.length === 0) {

@@ -105,13 +105,37 @@ export function BookingCalendar({
     refetchOnWindowFocus: true
   })
   
-  // Helper function to get slot times
+  // Helper function to get slot times in UTC
   const getSlotTimes = useMemo(() => {
     return (timeSlot: any, date: Date) => {
       const dateStr = format(date, 'yyyy-MM-dd')
+      
+      // Parse time components
+      const [startHours, startMinutes] = timeSlot.start.split(':').map(Number)
+      const [endHours, endMinutes] = timeSlot.end.split(':').map(Number)
+      
+      // Create dates in UTC
+      const startDate = new Date(Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        startHours,
+        startMinutes,
+        0
+      ))
+      
+      const endDate = new Date(Date.UTC(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        endHours,
+        endMinutes,
+        0
+      ))
+      
       return {
-        start: new Date(`${dateStr}T${timeSlot.start}:00`),
-        end: new Date(`${dateStr}T${timeSlot.end}:00`)
+        start: startDate,
+        end: endDate
       };
     };
   }, []);
@@ -291,11 +315,14 @@ export function BookingCalendar({
     ].filter(Boolean).join(" ")
   }
   
-  // Helper to convert Date to midnight to avoid timezone issues
+  // Helper to convert Date to midnight in UTC to avoid timezone issues
   function startOfDay(date: Date): Date {
-    const result = new Date(date)
-    result.setHours(0, 0, 0, 0)
-    return result
+    return new Date(Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      0, 0, 0
+    ))
   }
   
   if (isLoading) {

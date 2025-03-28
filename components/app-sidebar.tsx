@@ -78,6 +78,18 @@ export function AppSidebar({ openMobile, setOpenMobile }: AppSidebarProps) {
               {state === "expanded" && "Dashboard"}
             </Button>
             <Button
+              variant={isActive(["/foodtrucks", "/foodtrucks/"]) ? "default" : "ghost"}
+              className={cn(
+                "w-full",
+                state === "expanded" ? "justify-start" : "justify-center",
+                isActive(["/foodtrucks", "/foodtrucks/"]) && "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+              onClick={() => router.push("/foodtrucks")}
+            >
+              <Soup size={16} className={state === "expanded" ? "mr-2" : ""} />
+              {state === "expanded" && "Food Trucks"}
+            </Button>
+            <Button
               variant={isActive(["/spaces", "/spaces/"]) ? "default" : "ghost"}
               className={cn(
                 "w-full",
