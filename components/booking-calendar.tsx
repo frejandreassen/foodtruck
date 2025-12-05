@@ -505,7 +505,7 @@ export function BookingCalendar({
                     type="button"
                     onClick={() => !day.isPast && !day.isFuture && selectDate(day.fullDate)}
                     disabled={day.isPast || day.isFuture}
-                    className={getDayClass(day)}
+                    className={getDayClass(day).replace('size-8', 'size-9 md:size-10')}
                   >
                     <time dateTime={day.date}>{day.dayOfMonth}</time>
                   </button>

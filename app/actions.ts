@@ -373,9 +373,33 @@ export async function getBookingsForDateRange(startDate: string, endDate: string
     return { success: true, data: response.data }
   } catch (error) {
     console.error('Get bookings error:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to get bookings' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get bookings'
+    }
+  }
+}
+
+/**
+ * Get blocked dates for spaces (for any authenticated user)
+ */
+export async function getSpaceBlockedDates() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getSpaceBlockedDates(token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Get blocked dates error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get blocked dates'
     }
   }
 }
@@ -455,14 +479,43 @@ export async function createBooking(bookingData: {
     const bookingStartDate = new Date(bookingData.start)
     const maxAllowedDate = new Date()
     maxAllowedDate.setDate(maxAllowedDate.getDate() + rules.maximum_days_ahead)
-    
+
     if (bookingStartDate > maxAllowedDate) {
-      return { 
-        success: false, 
-        error: `Bookings can only be made up to ${rules.maximum_days_ahead} days in advance` 
+      return {
+        success: false,
+        error: `Bookings can only be made up to ${rules.maximum_days_ahead} days in advance`
       }
     }
-    
+
+    // Check if the space is blocked for this date
+    const bookingDate = bookingData.start.split('T')[0] // Extract YYYY-MM-DD
+    const bookingHour = bookingStartDate.getHours()
+    // Morning slot is 06:00-15:00, Evening slot is 16:00-03:00
+    const timeSlot: "morning" | "evening" = bookingHour < 16 ? "morning" : "evening"
+
+    console.log("=== Checking if space is blocked ===")
+    console.log("Space:", bookingData.space, "Date:", bookingDate, "Time slot:", timeSlot, "Hour:", bookingHour)
+
+    const blockedCheck = await directusServer.isSpaceBlocked(
+      bookingData.space,
+      bookingDate,
+      timeSlot,
+      token
+    )
+
+    console.log("=== Blocked check result:", JSON.stringify(blockedCheck))
+
+    if (blockedCheck.blocked) {
+      const errorMessage = blockedCheck.reason
+        ? `Denna plats är spärrad: ${blockedCheck.reason}`
+        : 'Denna plats är spärrad för det valda datumet'
+      console.log("=== RETURNING ERROR:", errorMessage)
+      return {
+        success: false,
+        error: errorMessage
+      }
+    }
+
     // Create the booking
     const response = await directusServer.createBooking(bookingData, token)
     
@@ -542,33 +595,546 @@ export async function cancelBooking(bookingId: string) {
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('access_token')?.value
-    
+
     if (!token) {
       return { success: false, error: 'Not authenticated' }
     }
-    
+
     // First verify that the booking belongs to the current user
     const userResult = await getUserFoodTruck()
     if (!userResult.success || !userResult.data) {
       return { success: false, error: 'Unable to verify ownership of this booking' }
     }
-    
+
     const userFoodTruck = userResult.data
-    
+
     // Delete the booking
     await directusServer.deleteBooking(bookingId, token)
-    
+
     // Revalidate booking data
     revalidateTag('bookings')
     revalidatePath('/booking')
     revalidatePath('/')
-    
+
     return { success: true }
   } catch (error) {
     console.error('Cancel booking error:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to cancel booking' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to cancel booking'
+    }
+  }
+}
+
+// ============================================
+// Admin functions (Head of Foodtruck)
+// ============================================
+
+const ADMIN_ROLES = ['Administrator', 'Head of Foodtruck']
+
+/**
+ * Get current user with role - checks if user has admin access
+ */
+export async function getCurrentUserWithRole() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getCurrentUserWithRole(token)
+    const isAdmin = ADMIN_ROLES.includes(response.data.role?.name)
+
+    return {
+      success: true,
+      data: {
+        ...response.data,
+        isAdmin
+      }
+    }
+  } catch (error) {
+    console.error('Get user with role error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get user data'
+    }
+  }
+}
+
+/**
+ * Get all food trucks with users (admin only)
+ */
+export async function adminGetAllFoodTrucks() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getAllFoodTrucksWithUsers(token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin get food trucks error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get food trucks'
+    }
+  }
+}
+
+/**
+ * Toggle food truck active status (admin only)
+ */
+export async function adminSetFoodTruckActive(id: string, active: boolean) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.setFoodTruckActive(id, active, token)
+
+    revalidatePath('/admin')
+    revalidateTag('foodtrucks')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin set food truck active error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update food truck'
+    }
+  }
+}
+
+/**
+ * Delete a food truck (admin only)
+ * Optionally also deletes the associated user (only if they have Foodtrucker role)
+ */
+export async function adminDeleteFoodTruck(id: string, deleteUser: boolean = false, userId?: string) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    // First delete the food truck
+    await directusServer.deleteFoodTruck(id, token)
+
+    // Then delete the user if requested
+    if (deleteUser && userId) {
+      try {
+        await directusServer.deleteFoodTruckUser(userId, token)
+      } catch (userError) {
+        console.error('Failed to delete user:', userError)
+        // Food truck is already deleted, so we return partial success
+        return {
+          success: true,
+          warning: 'Foodtruck borttagen, men kunde inte ta bort användaren'
+        }
+      }
+    }
+
+    revalidatePath('/admin')
+    revalidateTag('foodtrucks')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Admin delete food truck error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete food truck'
+    }
+  }
+}
+
+/**
+ * Update a food truck (admin only)
+ */
+export async function adminUpdateFoodTruck(id: string, data: { name?: string; description?: string }) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    // Verify admin role
+    const userResult = await directusServer.getCurrentUserWithRole(token)
+    if (!ADMIN_ROLES.includes(userResult.data.role?.name || '')) {
+      return { success: false, error: 'Unauthorized' }
+    }
+
+    const response = await directusServer.updateFoodTruck(id, data, token)
+
+    revalidatePath('/admin')
+    revalidateTag('foodtrucks')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin update food truck error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update food truck'
+    }
+  }
+}
+
+/**
+ * Get blocked dates for spaces (admin only)
+ */
+export async function adminGetSpaceBlockedDates() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getSpaceBlockedDates(token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin get blocked dates error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get blocked dates'
+    }
+  }
+}
+
+/**
+ * Create a blocked date for a space (admin only)
+ */
+export async function adminCreateSpaceBlockedDate(data: {
+  space: number;
+  date: string;
+  time_slot: "morning" | "evening" | "all_day";
+  reason?: string;
+}) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.createSpaceBlockedDate(data, token)
+
+    revalidatePath('/admin')
+    revalidateTag('blocked-dates')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin create blocked date error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create blocked date'
+    }
+  }
+}
+
+/**
+ * Delete a blocked date (admin only)
+ */
+export async function adminDeleteSpaceBlockedDate(id: string) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    await directusServer.deleteSpaceBlockedDate(id, token)
+
+    revalidatePath('/admin')
+    revalidateTag('blocked-dates')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Admin delete blocked date error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete blocked date'
+    }
+  }
+}
+
+/**
+ * Update booking rules including guidelines URL (admin only)
+ */
+export async function adminUpdateBookingRules(data: {
+  maximum_future_bookings?: number;
+  maximum_days_ahead?: number;
+  last_minute_booking_hours?: number;
+  guidelines_url?: string;
+}) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.updateBookingRules(data, token)
+
+    revalidatePath('/admin')
+    revalidateTag('booking-rules')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin update booking rules error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update booking rules'
+    }
+  }
+}
+
+/**
+ * Get users without a food truck (for assigning to new food trucks)
+ */
+export async function adminGetUsersWithoutFoodTruck() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getUsersWithoutFoodTruck(token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin get users without food truck error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get users'
+    }
+  }
+}
+
+/**
+ * Create a new food truck user (admin only)
+ */
+export async function adminCreateFoodTruckUser(data: {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+}) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.createFoodTruckUser(data, token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin create food truck user error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create user'
+    }
+  }
+}
+
+/**
+ * Create a new food truck (admin only)
+ */
+export async function adminCreateFoodTruck(data: {
+  name: string;
+  description?: string;
+  user: string;
+}) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.createFoodTruck(data, token)
+
+    revalidatePath('/admin')
+    revalidateTag('foodtrucks')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin create food truck error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create food truck'
+    }
+  }
+}
+
+// ============================================
+// Documents functions
+// ============================================
+
+/**
+ * Get all published documents (for regular users)
+ */
+export async function getDocuments() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getDocuments(token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Get documents error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get documents'
+    }
+  }
+}
+
+/**
+ * Get all documents for admin (including drafts)
+ */
+export async function adminGetDocuments() {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.getDocumentsAdmin(token)
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin get documents error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to get documents'
+    }
+  }
+}
+
+/**
+ * Create a document (admin only)
+ */
+export async function adminCreateDocument(data: {
+  title: string;
+  description?: string;
+  link_type: 'url' | 'file';
+  url?: string;
+  file?: string;
+}) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.createDocument(data, token)
+
+    revalidatePath('/admin')
+    revalidatePath('/lankar')
+    revalidateTag('documents')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin create document error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create document'
+    }
+  }
+}
+
+/**
+ * Update a document (admin only)
+ */
+export async function adminUpdateDocument(id: string, data: {
+  title?: string;
+  description?: string;
+  link_type?: 'url' | 'file';
+  url?: string;
+  file?: string;
+  status?: string;
+  sort?: number;
+}) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const response = await directusServer.updateDocument(id, data, token)
+
+    revalidatePath('/admin')
+    revalidatePath('/lankar')
+    revalidateTag('documents')
+
+    return { success: true, data: response.data }
+  } catch (error) {
+    console.error('Admin update document error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update document'
+    }
+  }
+}
+
+/**
+ * Delete a document (admin only)
+ */
+export async function adminDeleteDocument(id: string) {
+  try {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('access_token')?.value
+
+    if (!token) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    await directusServer.deleteDocument(id, token)
+
+    revalidatePath('/admin')
+    revalidatePath('/lankar')
+    revalidateTag('documents')
+
+    return { success: true }
+  } catch (error) {
+    console.error('Admin delete document error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete document'
     }
   }
 }

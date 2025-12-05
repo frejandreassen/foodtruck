@@ -14,14 +14,14 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { Soup, Home, User, KeyRound, LogOut, Calendar, MapPin, List, Menu } from "lucide-react"
+import { Soup, Home, User, KeyRound, LogOut, Calendar, MapPin, List, Menu, Shield, FileText } from "lucide-react"
 
 // Sidebar component doesn't need props but might in the future
 
 export function AppSidebar() {
   const router = useRouter()
   const pathname = usePathname()
-  const { user, logout } = useAuth()
+  const { user, logout, isAdmin } = useAuth()
   const sidebarContext = useSidebar()
   const state = sidebarContext?.state
   
@@ -122,6 +122,18 @@ export function AppSidebar() {
               {state === "expanded" && "Book a Space"}
             </Button>
             <Button
+              variant={isActive("/lankar") ? "default" : "ghost"}
+              className={cn(
+                "w-full",
+                state === "expanded" ? "justify-start" : "justify-center",
+                isActive("/lankar") && "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
+              onClick={() => router.push("/lankar")}
+            >
+              <FileText size={16} className={state === "expanded" ? "mr-2" : ""} />
+              {state === "expanded" && "Länkar"}
+            </Button>
+            <Button
               variant={isActive("/login") ? "default" : "ghost"}
               className={cn(
                 "w-full",
@@ -135,6 +147,25 @@ export function AppSidebar() {
             </Button>
           </div>
         </SidebarGroup>
+        {isAdmin && (
+          <SidebarGroup className="mb-6">
+            {state === "expanded" && <h3 className="text-sm font-medium mb-2 text-muted-foreground">Administration</h3>}
+            <div className="space-y-1">
+              <Button
+                variant={isActive("/admin") ? "default" : "ghost"}
+                className={cn(
+                  "w-full",
+                  state === "expanded" ? "justify-start" : "justify-center",
+                  isActive("/admin") ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                )}
+                onClick={() => router.push("/admin")}
+              >
+                <Shield size={16} className={state === "expanded" ? "mr-2" : ""} />
+                {state === "expanded" && "Admin"}
+              </Button>
+            </div>
+          </SidebarGroup>
+        )}
         <SidebarGroup>
           {state === "expanded" && <h3 className="text-sm font-medium mb-2 text-muted-foreground">Account</h3>}
           <div className="space-y-1">

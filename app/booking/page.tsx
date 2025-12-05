@@ -11,16 +11,17 @@ import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Soup, Calendar as CalendarIcon, MapPin, User, Check, AlertCircle, X, PanelLeftIcon, Clock, CircleCheck, Menu } from "lucide-react"
+import { Soup, Calendar as CalendarIcon, MapPin, User, Check, AlertCircle, X, PanelLeftIcon, Clock, CircleCheck, Menu, Ban } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
-import { 
-  getAllSpaces, 
-  getBookingsForDateRange, 
-  getUserFoodTruck, 
+import {
+  getAllSpaces,
+  getBookingsForDateRange,
+  getUserFoodTruck,
   createBooking,
   getBookingRules,
-  getFoodTruckBookings
+  getFoodTruckBookings,
+  getSpaceBlockedDates
 } from "@/app/actions"
 import { BookingRules } from "@/components/booking-rules"
 
@@ -46,32 +47,60 @@ export default function BookingPage() {
   }>(null)
   const [futureBookings, setFutureBookings] = useState(0)
   const [loadingRules, setLoadingRules] = useState(true)
+  const [bookingError, setBookingError] = useState<string | null>(null)
+  const [blockedDates, setBlockedDates] = useState<any[]>([])
+  const [datesWithBlocks, setDatesWithBlocks] = useState<Date[]>([])
+
+  // Load all blocked dates for calendar highlighting
+  const loadAllBlockedDates = async () => {
+    try {
+      const blockedResult = await getSpaceBlockedDates()
+      if (blockedResult.success && blockedResult.data) {
+        setBlockedDates(blockedResult.data)
+
+        // Create array of unique dates that have any blocks
+        const uniqueDates = [...new Set(blockedResult.data.map((b: any) => b.date))]
+        const dateObjects = uniqueDates.map(dateStr => {
+          const [year, month, day] = (dateStr as string).split('-').map(Number)
+          return new Date(year, month - 1, day)
+        })
+        setDatesWithBlocks(dateObjects)
+      }
+    } catch (err) {
+      console.error("Error loading blocked dates:", err)
+    }
+  }
 
   const loadBookingsForDate = async (selectedDate: Date) => {
     if (!selectedDate) return
-    
+
     setIsLoading(true)
     setError("")
-    
+
     try {
       // Create start and end date for the selected day
       const startDate = new Date(selectedDate)
       startDate.setHours(0, 0, 0, 0)
-      
+
       const endDate = new Date(selectedDate)
       endDate.setHours(23, 59, 59, 999)
-      
+
       // Convert to ISO strings for the API
       const startDateStr = startDate.toISOString()
       const endDateStr = endDate.toISOString()
-      
-      // Load spaces
-      const spacesResult = await getAllSpaces()
+
+      // Load spaces and blocked dates in parallel
+      const [spacesResult, bookingsResult, blockedResult] = await Promise.all([
+        getAllSpaces(),
+        getBookingsForDateRange(startDateStr, endDateStr),
+        getSpaceBlockedDates()
+      ])
+
       if (spacesResult.success) {
         setSpaces(spacesResult.data || [])
       } else if (spacesResult.error) {
         console.error("Error loading spaces:", spacesResult.error)
-        if (spacesResult.error.includes("Invalid email or password") || 
+        if (spacesResult.error.includes("Invalid email or password") ||
             spacesResult.error.includes("Not authenticated")) {
           setError("Authentication error. Please log in again.")
           return
@@ -80,24 +109,35 @@ export default function BookingPage() {
           return
         }
       }
-      
-      // Load bookings for the date range
-      const bookingsResult = await getBookingsForDateRange(startDateStr, endDateStr)
+
       if (bookingsResult.success) {
         setBookings(bookingsResult.data || [])
       } else if (bookingsResult.error) {
         console.error("Error loading bookings:", bookingsResult.error)
-        if (bookingsResult.error.includes("Invalid email or password") || 
+        if (bookingsResult.error.includes("Invalid email or password") ||
             bookingsResult.error.includes("Not authenticated")) {
           setError("Authentication error. Please log in again.")
         } else {
           setError(`Failed to load bookings: ${bookingsResult.error}`)
         }
       }
+
+      // Store blocked dates
+      if (blockedResult.success && blockedResult.data) {
+        setBlockedDates(blockedResult.data)
+
+        // Update dates with blocks for calendar
+        const uniqueDates = [...new Set(blockedResult.data.map((b: any) => b.date))]
+        const dateObjects = uniqueDates.map(dateStr => {
+          const [year, month, day] = (dateStr as string).split('-').map(Number)
+          return new Date(year, month - 1, day)
+        })
+        setDatesWithBlocks(dateObjects)
+      }
     } catch (err) {
       console.error("Error loading booking data:", err)
-      if (err instanceof Error && 
-          (err.message.includes("Invalid email or password") || 
+      if (err instanceof Error &&
+          (err.message.includes("Invalid email or password") ||
            err.message.includes("Not authenticated"))) {
         setError("Authentication error. Please log in again.")
       } else {
@@ -163,6 +203,11 @@ export default function BookingPage() {
     }
     
     loadUserData()
+  }, [])
+
+  // Load all blocked dates on mount for calendar indicators
+  useEffect(() => {
+    loadAllBlockedDates()
   }, [])
 
   // Load data when date changes
@@ -263,15 +308,51 @@ export default function BookingPage() {
   // Check if a booking is within the last-minute booking window
   const isLastMinuteBooking = (startTime: Date): boolean => {
     if (!bookingRules) return false
-    
+
     const now = new Date()
     const hoursUntilBooking = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60)
-    
+
     return hoursUntilBooking <= bookingRules.last_minute_booking_hours
+  }
+
+  // Check if a specific space and time slot is blocked
+  const isSlotBlocked = (spaceId: string | number, timeSlot: { start: string }): { blocked: boolean; reason?: string } => {
+    if (!date || !blockedDates.length) return { blocked: false }
+
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const slotStartHour = parseInt(timeSlot.start.split(':')[0])
+    // Morning slot is before 16:00, Evening slot is 16:00 or later
+    const slotType = slotStartHour < 16 ? "morning" : "evening"
+
+    const block = blockedDates.find(blocked => {
+      // Check if this block is for the current space and date
+      const blockSpaceId = blocked.space?.id || blocked.space
+      if (String(blockSpaceId) !== String(spaceId)) return false
+      if (blocked.date !== dateStr) return false
+
+      // Check if the time slot matches
+      if (blocked.time_slot === "all_day") return true
+      if (blocked.time_slot === slotType) return true
+
+      return false
+    })
+
+    if (block) {
+      return { blocked: true, reason: block.reason }
+    }
+    return { blocked: false }
+  }
+
+  // Get count of blocked spaces for a specific date (for calendar indicator)
+  const getBlockedCountForDate = (checkDate: Date): number => {
+    const dateStr = format(checkDate, 'yyyy-MM-dd')
+    return blockedDates.filter(b => b.date === dateStr).length
   }
 
   // Start the booking process
   const handleBookSpace = (space: any, timeSlot: any) => {
+    console.log("=== handleBookSpace called ===", { space: space.name, timeSlot })
+
     if (!userFoodTruck) {
       toast({
         title: "Food truck not found",
@@ -280,9 +361,10 @@ export default function BookingPage() {
       })
       return
     }
-    
+
     // Always open the booking dialog, even if at max bookings
     // The dialog will show the appropriate status and disable the Confirm button if needed
+    setBookingError(null) // Clear any previous error
     setBookingSpace(space)
     setBookingTimeSlot(timeSlot)
     setShowBookingConfirm(true)
@@ -290,6 +372,8 @@ export default function BookingPage() {
   
   // Create the actual booking
   const confirmBooking = async () => {
+    console.log("=== confirmBooking called ===")
+
     if (!userFoodTruck || !bookingSpace || !bookingTimeSlot || !date) {
       toast({
         title: "Error",
@@ -298,8 +382,9 @@ export default function BookingPage() {
       })
       return
     }
-    
+
     setIsBooking(true)
+    setBookingError(null) // Clear any previous error
     
     try {
       // Format of time_slots can be "08:00:00" or "08:00"
@@ -344,35 +429,44 @@ export default function BookingPage() {
       // Call the createBooking action
       const result = await createBooking(bookingData)
       
+      console.log("=== createBooking result:", JSON.stringify(result))
+
       if (result.success) {
+        console.log("Booking SUCCESS - closing modal")
         toast({
           title: "Booking confirmed!",
           description: `You have booked ${bookingSpace.name} for ${bookingTimeSlot.description} on ${format(date, "MMMM do, yyyy")}`,
           variant: "default"
         })
-        
+
         // Close the confirmation dialog and refresh the bookings
         setShowBookingConfirm(false)
-        
+        setBookingError(null)
+
         // Refresh the calendar view
         loadBookingsForDate(date)
-        
+
         // Refresh future bookings count and rules
         if (userFoodTruck && userFoodTruck.id) {
           await loadBookingRulesAndFutureBookings(userFoodTruck.id)
         }
       } else if (result.error) {
+        console.log("Booking ERROR - keeping modal open with error:", result.error)
+        // Set the error to display in the modal - DO NOT close the modal
+        setBookingError(result.error)
         toast({
-          title: "Booking failed",
+          title: "Bokningen misslyckades",
           description: result.error,
           variant: "destructive"
         })
       }
     } catch (error) {
-      console.error("Booking error:", error)
+      console.error("Booking EXCEPTION:", error)
+      const errorMsg = error instanceof Error ? error.message : "An unknown error occurred"
+      setBookingError(errorMsg)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: errorMsg,
         variant: "destructive"
       })
     } finally {
@@ -385,6 +479,7 @@ export default function BookingPage() {
     setShowBookingConfirm(false)
     setBookingSpace(null)
     setBookingTimeSlot(null)
+    setBookingError(null)
   }
 
   return (
@@ -451,11 +546,28 @@ export default function BookingPage() {
                       onSelect={setDate}
                       weekStartsOn={1}
                       className=""
-                      disabled={{ 
+                      disabled={{
                         before: new Date(),
-                        after: bookingRules ? addDays(new Date(), bookingRules.maximum_days_ahead) : undefined 
+                        after: bookingRules ? addDays(new Date(), bookingRules.maximum_days_ahead) : undefined
+                      }}
+                      modifiers={{
+                        hasBlocked: datesWithBlocks
+                      }}
+                      modifiersStyles={{
+                        hasBlocked: {
+                          position: 'relative'
+                        }
+                      }}
+                      modifiersClassNames={{
+                        hasBlocked: 'has-blocked-indicator'
                       }}
                     />
+                    {datesWithBlocks.length > 0 && (
+                      <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                        <span>= Plats/platser spärrade</span>
+                      </div>
+                    )}
                   </CardContent>
                   <CardFooter>
                     <p className="text-sm text-muted-foreground">
@@ -523,32 +635,46 @@ export default function BookingPage() {
                                 {space.time_slots && Array.isArray(space.time_slots) && space.time_slots.length > 0 ? (
                                   space.time_slots.map((timeSlot, index) => {
                                     // Make sure the timeSlot has an id
-                                    const timeSlotWithId = { 
-                                      ...timeSlot, 
-                                      id: timeSlot.id || `ts_${index}` 
+                                    const timeSlotWithId = {
+                                      ...timeSlot,
+                                      id: timeSlot.id || `ts_${index}`
                                     };
                                     const isBooked = isSpaceBooked(space.id, timeSlotWithId)
                                     const bookingDetails = isBooked ? getBookingDetails(space.id, timeSlotWithId) : null
-                                  
+                                    const blockStatus = isSlotBlocked(space.id, timeSlotWithId)
+
                                   return (
-                                    <div 
-                                      key={timeSlotWithId.id} 
-                                      className={`p-3 rounded-md flex justify-between items-center ${isBooked ? 'bg-gray-50' : 'bg-gray-50/30'}`}
+                                    <div
+                                      key={timeSlotWithId.id}
+                                      className={`p-3 rounded-md flex justify-between items-center ${
+                                        blockStatus.blocked
+                                          ? 'bg-red-50 border border-red-200'
+                                          : isBooked
+                                            ? 'bg-gray-50'
+                                            : 'bg-gray-50/30'
+                                      }`}
                                     >
                                       <div>
-                                        <div className="font-medium">{timeSlotWithId.description || timeSlotWithId.name || `Slot ${timeSlotWithId.id}`}</div>
-                                        <div className="text-sm text-muted-foreground">
+                                        <div className={`font-medium ${blockStatus.blocked ? 'text-red-700' : ''}`}>
+                                          {timeSlotWithId.description || timeSlotWithId.name || `Slot ${timeSlotWithId.id}`}
+                                        </div>
+                                        <div className={`text-sm ${blockStatus.blocked ? 'text-red-500' : 'text-muted-foreground'}`}>
                                           {timeSlotWithId.start?.split(':').slice(0, 2).join(':')} - {timeSlotWithId.end?.split(':').slice(0, 2).join(':')}
                                         </div>
                                       </div>
-                                      
-                                      {isBooked ? (
+
+                                      {blockStatus.blocked ? (
+                                        <div className="flex items-center text-sm text-red-600">
+                                          <Ban size={14} className="mr-1" />
+                                          <span>Spärrad{blockStatus.reason ? `: ${blockStatus.reason}` : ''}</span>
+                                        </div>
+                                      ) : isBooked ? (
                                         <div className="flex items-center text-sm text-muted-foreground">
                                           <User size={14} className="mr-1" />
-                                          Booked by {bookingDetails?.foodtruck?.name ? 
-                                            typeof bookingDetails.foodtruck.name === 'object' ? 
-                                              "Another food truck" : 
-                                              String(bookingDetails.foodtruck.name) 
+                                          Booked by {bookingDetails?.foodtruck?.name ?
+                                            typeof bookingDetails.foodtruck.name === 'object' ?
+                                              "Another food truck" :
+                                              String(bookingDetails.foodtruck.name)
                                             : "Unknown"}
                                         </div>
                                       ) : (
@@ -834,10 +960,15 @@ export default function BookingPage() {
                   </Button>
                 </div>
                 
-                {error && (
-                  <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600 text-sm flex items-center">
-                    <AlertCircle className="mr-2 h-4 w-4" />
-                    {error}
+                {bookingError && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                    <div className="flex items-start gap-2">
+                      <X className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium text-red-700">Bokningen misslyckades</p>
+                        <p className="text-sm text-red-600 mt-1">{bookingError}</p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

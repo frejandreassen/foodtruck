@@ -6,7 +6,7 @@ import { Clock, Calendar, CheckCircle, AlertCircle, X } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { getBookingsForDateRange, getUserFoodTruck, getBookingRules, createBooking } from "@/app/actions"
+import { getBookingsForDateRange, getUserFoodTruck, getBookingRules, createBooking, getSpaceBlockedDates } from "@/app/actions"
 import { useToast } from "@/components/ui/use-toast"
 
 interface AvailableSlotsDialogProps {
@@ -27,6 +27,7 @@ export function AvailableSlotsDialog({
   const { toast } = useToast()
   const [isLoading, setIsLoading] = useState(true)
   const [bookings, setBookings] = useState<any[]>([])
+  const [blockedDates, setBlockedDates] = useState<any[]>([])
   const [slots, setSlots] = useState<any[]>([])
   const [userFoodTruck, setUserFoodTruck] = useState<any>(null)
   const [bookingRules, setBookingRules] = useState<any>(null)
@@ -100,35 +101,45 @@ export function AvailableSlotsDialog({
         dates.push(addDays(now, i))
       }
       
-      // Get all bookings for this date range
+      // Get all bookings and blocked dates for this date range
       const startDate = new Date()
       startDate.setHours(0, 0, 0, 0)
-      
+
       const endDate = addDays(startDate, maxDaysAhead)
       endDate.setHours(23, 59, 59, 999)
-      
-      const bookingsResult = await getBookingsForDateRange(
-        startDate.toISOString(),
-        endDate.toISOString()
-      )
-      
+
+      const [bookingsResult, blockedResult] = await Promise.all([
+        getBookingsForDateRange(startDate.toISOString(), endDate.toISOString()),
+        getSpaceBlockedDates()
+      ])
+
       if (bookingsResult.success) {
         // Filter to only bookings for this space
         const spaceBookings = bookingsResult.data?.filter(
           (booking: any) => booking.space.id === spaceId
         ) || []
-        
+
         setBookings(spaceBookings)
-        
+
+        // Filter blocked dates for this space
+        const spaceBlockedDates = blockedResult.success
+          ? (blockedResult.data || []).filter((blocked: any) =>
+              blocked.space?.id === spaceId || blocked.space === parseInt(spaceId)
+            )
+          : []
+
+        setBlockedDates(spaceBlockedDates)
+
         // Generate all possible slots
-        const allSlots = dates.flatMap(date => 
+        const allSlots = dates.flatMap(date =>
           timeSlots.map(slot => ({
             date,
             timeSlot: slot,
-            isAvailable: !isSlotBooked(spaceId, slot, date, spaceBookings)
+            isAvailable: !isSlotBooked(spaceId, slot, date, spaceBookings) &&
+                        !isSlotBlocked(slot, date, spaceBlockedDates)
           }))
         )
-        
+
         // Only show available slots
         setSlots(allSlots.filter(slot => slot.isAvailable))
       } else {
@@ -148,21 +159,41 @@ export function AvailableSlotsDialog({
     const dateStr = format(date, 'yyyy-MM-dd')
     const timeSlotStart = new Date(`${dateStr}T${timeSlot.start}:00`)
     const timeSlotEnd = new Date(`${dateStr}T${timeSlot.end}:00`)
-    
+
     // Check if any booking overlaps with this slot
     return bookingsList.some(booking => {
       try {
         // Skip if not for this space
         if (booking.space.id !== spaceId) return false
-        
+
         const bookingStart = new Date(booking.start)
         const bookingEnd = new Date(booking.end)
-        
+
         return (bookingStart <= timeSlotEnd && bookingEnd >= timeSlotStart)
       } catch (error) {
         console.error("Error checking booking overlap:", error)
         return false
       }
+    })
+  }
+
+  // Check if a slot is blocked by admin
+  const isSlotBlocked = (timeSlot: any, date: Date, blockedList: any[]): boolean => {
+    const dateStr = format(date, 'yyyy-MM-dd')
+
+    // Determine which time slot type this is (morning: 06-15, evening: 16-03)
+    const slotStartHour = parseInt(timeSlot.start.split(':')[0])
+    const slotType = slotStartHour < 16 ? "morning" : "evening"
+
+    return blockedList.some(blocked => {
+      // Check if dates match
+      if (blocked.date !== dateStr) return false
+
+      // Check time slot match
+      if (blocked.time_slot === "all_day") return true
+      if (blocked.time_slot === slotType) return true
+
+      return false
     })
   }
   

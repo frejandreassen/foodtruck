@@ -17,22 +17,23 @@ async function directusRequest<T>(
   options: RequestInit
 ): Promise<T> {
   const url = `${DIRECTUS_URL}${endpoint}`;
-  
+  const isAuthEndpoint = endpoint.startsWith('/auth/login');
+
   try {
     console.log(`Making Directus request to: ${url}`);
     const response = await fetch(url, options);
-    
+
     if (!response.ok) {
       try {
         const errorData = await response.json() as DirectusErrorResponse;
-        
+
         // Get the actual error message or create a user-friendly one
         let errorMessage = errorData.errors?.[0]?.message;
-        
+
         // If no specific error message, create a user-friendly one based on status code
         if (!errorMessage) {
           if (response.status === 401) {
-            errorMessage = "Invalid email or password";
+            errorMessage = isAuthEndpoint ? "Invalid email or password" : "Session expired";
           } else if (response.status === 403) {
             errorMessage = "You don't have permission to access this resource";
           } else if (response.status === 404) {
@@ -45,14 +46,14 @@ async function directusRequest<T>(
             errorMessage = `Request failed (${response.status})`;
           }
         }
-        
+
         throw new Error(errorMessage);
       } catch (jsonError) {
         // If we can't parse the error as JSON, create a user-friendly message
         let errorMessage = "An error occurred";
-        
+
         if (response.status === 401) {
-          errorMessage = "Invalid email or password";
+          errorMessage = isAuthEndpoint ? "Invalid email or password" : "Session expired";
         } else if (response.status === 403) {
           errorMessage = "You don't have permission to access this resource";
         } else if (response.status === 404) {
@@ -62,7 +63,7 @@ async function directusRequest<T>(
         } else if (response.status >= 500) {
           errorMessage = "Server error, please try again later";
         }
-        
+
         throw new Error(errorMessage);
       }
     }
@@ -423,6 +424,398 @@ export const directusServer = {
   async deleteBooking(id: string, token: string) {
     return directusRequest<void>(
       `/items/foodtruck_bookings/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  // ============================================
+  // Admin functions (Head of Foodtruck)
+  // ============================================
+
+  /**
+   * Get current user with role information
+   */
+  async getCurrentUserWithRole(token: string) {
+    return directusRequest<{ data: { id: string; email: string; first_name: string; last_name: string; role: { id: string; name: string } } }>(
+      "/users/me?fields=id,email,first_name,last_name,role.id,role.name",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Get all food trucks with user information (for admin)
+   */
+  async getAllFoodTrucksWithUsers(token: string) {
+    return directusRequest<{ data: any[] }>(
+      "/items/foodtrucks?fields=*,user.id,user.email,user.first_name,user.last_name,bookings.id",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Toggle food truck active status
+   */
+  async setFoodTruckActive(id: string, active: boolean, token: string) {
+    return directusRequest<{ data: any }>(
+      `/items/foodtrucks/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ active }),
+      }
+    );
+  },
+
+  /**
+   * Delete a food truck
+   */
+  async deleteFoodTruck(id: string, token: string) {
+    return directusRequest<void>(
+      `/items/foodtrucks/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Get blocked dates for spaces
+   */
+  async getSpaceBlockedDates(token: string) {
+    return directusRequest<{ data: any[] }>(
+      "/items/space_blocked_dates?fields=*,space.id,space.name&filter[status][_neq]=archived&sort=date",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Check if a space is blocked for a specific date and time slot
+   */
+  async isSpaceBlocked(spaceId: string, date: string, timeSlot: "morning" | "evening", token: string) {
+    // Get blocked dates for this space on this date
+    const response = await directusRequest<{ data: any[] }>(
+      `/items/space_blocked_dates?fields=*&filter[space][_eq]=${spaceId}&filter[date][_eq]=${date}&filter[status][_neq]=archived`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    // Check if any blocked date matches the time slot
+    for (const blocked of response.data) {
+      if (blocked.time_slot === "all_day") {
+        return { blocked: true, reason: blocked.reason };
+      }
+      if (blocked.time_slot === timeSlot) {
+        return { blocked: true, reason: blocked.reason };
+      }
+    }
+
+    return { blocked: false };
+  },
+
+  /**
+   * Create a blocked date for a space
+   */
+  async createSpaceBlockedDate(data: {
+    space: number;
+    date: string;
+    time_slot: "morning" | "evening" | "all_day";
+    reason?: string;
+  }, token: string) {
+    return directusRequest<{ data: any }>(
+      "/items/space_blocked_dates",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ...data, status: "published" }),
+      }
+    );
+  },
+
+  /**
+   * Delete a blocked date
+   */
+  async deleteSpaceBlockedDate(id: string, token: string) {
+    return directusRequest<void>(
+      `/items/space_blocked_dates/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Update booking rules (including guidelines_url)
+   */
+  async updateBookingRules(data: {
+    maximum_future_bookings?: number;
+    maximum_days_ahead?: number;
+    last_minute_booking_hours?: number;
+    guidelines_url?: string;
+  }, token: string) {
+    return directusRequest<{ data: any }>(
+      "/items/foodtruck_rules",
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      }
+    );
+  },
+
+  /**
+   * Get users without a food truck (for creating new food trucks)
+   */
+  async getUsersWithoutFoodTruck(token: string) {
+    // First get all food truck user IDs
+    const foodTrucks = await directusRequest<{ data: { user: string }[] }>(
+      "/items/foodtrucks?fields=user",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const usedUserIds = foodTrucks.data.map(ft => ft.user).filter(Boolean);
+
+    // Get all users with the Foodtrucker role
+    const foodtruckerRoleId = "678efff4-6582-41a5-8b5d-e197dac5ae73";
+
+    let url = `/users?fields=id,email,first_name,last_name&filter[role][_eq]=${foodtruckerRoleId}`;
+
+    // Exclude users who already have a food truck
+    if (usedUserIds.length > 0) {
+      url += `&filter[id][_nin]=${usedUserIds.join(",")}`;
+    }
+
+    return directusRequest<{ data: any[] }>(url, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  },
+
+  /**
+   * Create a new user with Foodtrucker role
+   */
+  async createFoodTruckUser(data: {
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+  }, token: string) {
+    const foodtruckerRoleId = "678efff4-6582-41a5-8b5d-e197dac5ae73";
+
+    return directusRequest<{ data: any }>(
+      "/users",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...data,
+          role: foodtruckerRoleId,
+        }),
+      }
+    );
+  },
+
+  /**
+   * Create a new food truck
+   */
+  async createFoodTruck(data: {
+    name: string;
+    description?: string;
+    user: string;
+    active?: boolean;
+  }, token: string) {
+    return directusRequest<{ data: any }>(
+      "/items/foodtrucks",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...data,
+          active: data.active ?? true,
+        }),
+      }
+    );
+  },
+
+  /**
+   * Delete a user (only Foodtrucker role users)
+   */
+  async deleteFoodTruckUser(userId: string, token: string) {
+    const foodtruckerRoleId = "678efff4-6582-41a5-8b5d-e197dac5ae73";
+
+    // First verify the user has Foodtrucker role (safety check)
+    const user = await directusRequest<{ data: { role: string } }>(
+      `/users/${userId}?fields=role`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (user.data.role !== foodtruckerRoleId) {
+      throw new Error("Kan endast ta bort användare med Foodtrucker-rollen");
+    }
+
+    return directusRequest<void>(
+      `/users/${userId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  // ============================================
+  // Documents functions
+  // ============================================
+
+  /**
+   * Get all documents (for regular users - only published)
+   */
+  async getDocuments(token: string) {
+    return directusRequest<{ data: any[] }>(
+      "/items/documents?fields=*,file.*&filter[status][_eq]=published&sort=sort",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Get all documents for admin (including drafts)
+   */
+  async getDocumentsAdmin(token: string) {
+    return directusRequest<{ data: any[] }>(
+      "/items/documents?fields=*,file.*&filter[status][_neq]=archived&sort=sort",
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
+   * Create a document
+   */
+  async createDocument(data: {
+    title: string;
+    description?: string;
+    link_type: 'url' | 'file';
+    url?: string;
+    file?: string;
+    status?: string;
+  }, token: string) {
+    return directusRequest<{ data: any }>(
+      "/items/documents",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ...data,
+          status: data.status || 'published'
+        }),
+      }
+    );
+  },
+
+  /**
+   * Update a document
+   */
+  async updateDocument(id: string, data: {
+    title?: string;
+    description?: string;
+    link_type?: 'url' | 'file';
+    url?: string;
+    file?: string;
+    status?: string;
+    sort?: number;
+  }, token: string) {
+    return directusRequest<{ data: any }>(
+      `/items/documents/${id}`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      }
+    );
+  },
+
+  /**
+   * Delete a document
+   */
+  async deleteDocument(id: string, token: string) {
+    return directusRequest<void>(
+      `/items/documents/${id}`,
       {
         method: "DELETE",
         headers: {

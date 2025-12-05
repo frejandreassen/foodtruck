@@ -165,4 +165,17 @@
   .toast-exit {
     animation: slideOut 0.3s ease-in forwards;
   }
+
+  /* Calendar blocked date indicator */
+  .has-blocked-indicator::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: #f87171; /* red-400 */
+  }
 }
