@@ -27,6 +27,7 @@ interface BookingConfirmationModalProps {
   futureBookings: number;
   isLastMinuteBooking: (timeSlot: any) => boolean;
   hasReachedMaxBookings: () => boolean;
+  error?: string;
 }
 
 export function BookingConfirmationModal({
@@ -41,12 +42,28 @@ export function BookingConfirmationModal({
   bookingRules,
   futureBookings,
   isLastMinuteBooking,
-  hasReachedMaxBookings
+  hasReachedMaxBookings,
+  error
 }: BookingConfirmationModalProps) {
+  console.log("=== BookingConfirmationModal render ===", { isOpen, isBooking, error })
   const isBookable = !hasReachedMaxBookings() || (timeSlot && isLastMinuteBooking(timeSlot));
   
+  const handleOpenChange = (open: boolean) => {
+    console.log("=== Dialog onOpenChange ===", { open, isBooking, hasError: !!error })
+    // Don't allow closing while booking is in progress
+    if (!open && isBooking) {
+      console.log("Preventing close during booking")
+      return
+    }
+    // When user explicitly clicks outside or presses escape, allow close
+    if (!open) {
+      console.log("Dialog closing via onOpenChange")
+    }
+    onClose()
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogTitle className="text-base font-medium mb-4">Confirm Booking</DialogTitle>
         
@@ -89,13 +106,26 @@ export function BookingConfirmationModal({
         </div>
         
         {/* Booking status indicator */}
-        <BookingStatusIndicator 
+        <BookingStatusIndicator
           hasReachedMaxBookings={hasReachedMaxBookings}
           isLastMinuteBooking={isLastMinuteBooking}
           timeSlot={timeSlot}
           bookingRules={bookingRules}
           futureBookings={futureBookings}
         />
+
+        {/* Error message */}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="flex items-start gap-2">
+              <X className="mt-0.5 text-red-500" size={16} />
+              <div>
+                <p className="text-sm font-medium text-red-700">Bokningen misslyckades</p>
+                <p className="text-xs text-red-600">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="flex justify-end gap-2 mt-4">
           <Button

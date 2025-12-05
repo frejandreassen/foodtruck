@@ -2,19 +2,25 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react"
 import { useRouter } from "next/navigation"
-import { login as loginAction, getCurrentUser, refreshToken as refreshTokenAction, logout as logoutAction } from "@/app/actions"
+import { login as loginAction, getCurrentUserWithRole, refreshToken as refreshTokenAction, logout as logoutAction } from "@/app/actions"
 
 interface User {
   id: string
   email: string
   first_name?: string
   last_name?: string
+  role?: {
+    id: string
+    name: string
+  }
+  isAdmin?: boolean
 }
 
 interface AuthContextType {
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
+  isAdmin: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
@@ -31,9 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
       try {
         setIsLoading(true)
-        const result = await getCurrentUser()
-        
-        if (result.success) {
+        const result = await getCurrentUserWithRole()
+
+        if (result.success && result.data) {
           setUser(result.data)
         } else {
           // Try to refresh token
@@ -52,12 +58,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const tryRefreshToken = async () => {
     try {
       const result = await refreshTokenAction()
-      
+
       if (result.success) {
         // Get user data with new token
-        const userResult = await getCurrentUser()
-        
-        if (userResult.success) {
+        const userResult = await getCurrentUserWithRole()
+
+        if (userResult.success && userResult.data) {
           setUser(userResult.data)
         } else {
           setUser(null)
@@ -73,18 +79,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     setIsLoading(true)
-    
+
     try {
       const result = await loginAction(email, password)
-      
+
       if (!result.success) {
         throw new Error(result.error || "Login failed")
       }
-      
-      // Get user data
-      const userResult = await getCurrentUser()
-      
-      if (userResult.success) {
+
+      // Get user data with role
+      const userResult = await getCurrentUserWithRole()
+
+      if (userResult.success && userResult.data) {
         setUser(userResult.data)
         // We'll handle redirect in the login form
       } else {
@@ -114,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated: !!user,
+        isAdmin: !!user?.isAdmin,
         login,
         logout
       }}

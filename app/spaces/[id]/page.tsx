@@ -40,6 +40,7 @@ export default function SpaceDetailsPage() {
   const [showBookingConfirm, setShowBookingConfirm] = useState(false)
   const [bookingTimeSlot, setBookingTimeSlot] = useState<any>(null)
   const [isBooking, setIsBooking] = useState(false)
+  const [bookingError, setBookingError] = useState<string | undefined>(undefined)
 
   const loadSpaceDetails = async () => {
     setIsLoading(true)
@@ -291,6 +292,8 @@ export default function SpaceDetailsPage() {
 
   // Start the booking process
   const handleBookSpace = (timeSlot: any) => {
+    console.log("=== handleBookSpace called ===", timeSlot)
+
     if (!userFoodTruck) {
       toast({
         title: "Food truck not found",
@@ -299,7 +302,7 @@ export default function SpaceDetailsPage() {
       })
       return
     }
-    
+
     if (!space) {
       toast({
         title: "Space not found",
@@ -309,13 +312,18 @@ export default function SpaceDetailsPage() {
       return
     }
 
+    console.log("Opening booking confirmation modal")
     setBookingTimeSlot(timeSlot)
     setShowBookingConfirm(true)
   }
 
   // Create the actual booking
   const confirmBooking = async () => {
+    console.log("=== confirmBooking STARTED ===")
+    console.log("showBookingConfirm state:", showBookingConfirm)
+
     if (!userFoodTruck || !space || !bookingTimeSlot || !date) {
+      console.log("Missing data - returning early")
       toast({
         title: "Error",
         description: "Missing required information for booking",
@@ -323,8 +331,10 @@ export default function SpaceDetailsPage() {
       })
       return
     }
-    
+
+    console.log("Setting isBooking=true, clearing error")
     setIsBooking(true)
+    setBookingError(undefined) // Clear any previous error
     
     try {
       // Format of time_slots can be "08:00:00" or "08:00"
@@ -383,9 +393,12 @@ export default function SpaceDetailsPage() {
       }
       
       // Call the createBooking action
+      console.log("Calling createBooking with:", bookingData)
       const result = await createBooking(bookingData)
-      
+      console.log("=== createBooking result:", JSON.stringify(result))
+
       if (result.success) {
+        console.log("Booking SUCCESS - closing modal")
         toast({
           title: "Booking confirmed!",
           description: `You have booked ${space.name} for ${bookingTimeSlot.description || `${bookingTimeSlot.start} - ${bookingTimeSlot.end}`} on ${format(date, "MMMM do, yyyy")}`,
@@ -404,6 +417,10 @@ export default function SpaceDetailsPage() {
         // Increment the counter immediately for better UX
         setAllFutureBookingsCount(prev => prev + 1)
       } else if (result.error) {
+        console.log("Booking ERROR - keeping modal open with error:", result.error)
+        console.log("Current showBookingConfirm state before setBookingError:", showBookingConfirm)
+        setBookingError(result.error)
+        console.log("Called setBookingError, modal should stay open")
         toast({
           title: "Booking failed",
           description: result.error,
@@ -411,10 +428,12 @@ export default function SpaceDetailsPage() {
         })
       }
     } catch (error) {
-      console.error("Booking error:", error)
+      console.error("Booking EXCEPTION:", error)
+      const errorMsg = error instanceof Error ? error.message : "An unknown error occurred"
+      setBookingError(errorMsg)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description: errorMsg,
         variant: "destructive"
       })
     } finally {
@@ -424,8 +443,11 @@ export default function SpaceDetailsPage() {
 
   // Cancel the booking process (dialog)
   const cancelBooking = () => {
+    console.log("=== cancelBooking called - closing modal ===")
+    console.log("Stack trace:", new Error().stack)
     setShowBookingConfirm(false)
     setBookingTimeSlot(null)
+    setBookingError(undefined)
   }
 
   // Load user's food truck and booking rules
@@ -756,7 +778,7 @@ export default function SpaceDetailsPage() {
           </div>
 
           {/* Booking Confirmation Modal */}
-          <BookingConfirmationModal 
+          <BookingConfirmationModal
             isOpen={showBookingConfirm}
             onClose={cancelBooking}
             onConfirm={confirmBooking}
@@ -769,6 +791,7 @@ export default function SpaceDetailsPage() {
             futureBookings={getFutureBookingsCount()}
             isLastMinuteBooking={isLastMinuteBooking}
             hasReachedMaxBookings={hasReachedMaxBookings}
+            error={bookingError}
           />
         </div>
       </SidebarProvider>

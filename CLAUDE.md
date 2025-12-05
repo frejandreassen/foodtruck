@@ -1,4 +1,6 @@
-# CLAUDE.md - Next.js Food Truck Project Guidelines
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
 - `pnpm dev` - Start development server with turbopack
@@ -6,77 +8,54 @@
 - `pnpm start` - Start production server
 - `pnpm lint` - Run ESLint
 
-## Code Style
-- **Types**: Use strict TypeScript typing (`strict: true` in tsconfig)
-- **Imports**: Use absolute imports with `@/` alias (e.g., `@/components/ui/button`)
-- **Components**: Use function components with explicit type definitions
-- **Props**: Destructure props at the component level
-- **CSS**: Use Tailwind with the `cn` utility for class merging
-- **Error Handling**: Use try/catch for async operations
-- **UI Components**: Keep in `/components/ui` directory
-- **Page Components**: Keep in `/app` directory using Next.js App Router
-- **Naming**: PascalCase for components, camelCase for functions/variables
-- **React Patterns**: Prefer composition over inheritance
-- **Exports**: Use named exports for components
+## Architecture Overview
 
-## TypeScript
-- Target ES2017
-- Strict type checking
-- Use type inference when possible, explicit types for function parameters
+### Tech Stack
+- Next.js 15 with App Router and Turbopack
+- React 19 with TanStack Query for data fetching
+- Tailwind CSS 4 with shadcn/ui components (Radix UI primitives)
+- Directus CMS backend at cms.businessfalkenberg.se
+- Google Maps integration via @react-google-maps/api
 
-## Backend
-Directus backend available at cms.businessfalkenberg.se
+### Key Architectural Patterns
 
-### Food Truck Booking System Schema
-Core Collections
+**Server Actions Pattern**: All Directus API communication flows through:
+1. `app/actions.ts` - Server actions that handle authentication and call directusServer
+2. `lib/directus-server.ts` - Low-level Directus API wrapper with typed requests
 
-#### Food Trucks (foodtrucks)
+**Authentication Flow**:
+- Directus auth with JWT tokens stored in httpOnly cookies (`access_token`, `refresh_token`)
+- `lib/auth-context.tsx` - Client-side auth state management via React Context
+- `components/protected-route.tsx` - Route protection wrapper with redirect-after-login support
+- Auth pages: `/login`, `/auth/password-request`, `/auth/password-reset`
+- No signup page (users created in Directus admin)
 
-id: Primary key (auto-increment integer)
-name: Truck name
-user: Foreign key to Directus user (owner)
-bookings: One-to-many relationship to bookings
+**Provider Hierarchy** (in `app/layout.tsx`):
+```
+EnvProvider → QueryProvider → AuthProvider → MapsProvider
+```
 
+### Directus Schema
 
-#### Spaces (spaces)
+**Collections:**
+- `foodtrucks` - id, name, user (FK to Directus user), bookings relation
+- `spaces` - id, name, location (geographic point), time_slots, bookings relation
+- `foodtruck_bookings` - id, foodtruck (FK), space (FK), start, end datetimes
+- `foodtruck_rules` - Booking rules (max_future_bookings, max_days_ahead, last_minute_booking_hours)
 
-id: Primary key (auto-increment integer)
-name: Space name
-location: Geographic point data
-bookings: One-to-many relationship to bookings
+**Key Relationships:**
+- Food truck owners (Directus users) have one food truck
+- Food trucks and spaces have many bookings
+- Each booking links one food truck to one space for a time period
 
+### Environment Variables
+- `DIRECTUS_URL` / `NEXT_PUBLIC_DIRECTUS_URL` - Directus backend URL
+- `APP_URL` / `NEXT_PUBLIC_APP_URL` - Application URL (for password reset links)
+- Google Maps API key (via EnvProvider)
 
-#### Bookings (foodtruck_bookings)
-
-id: Primary key (auto-increment integer)
-foodtruck: Foreign key to food truck
-space: Foreign key to space
-start: Booking start datetime
-end: Booking end datetime
-
-
-
-#### Relationships
-
-A food truck can have multiple bookings
-A space can have multiple bookings
-Each booking connects one food truck to one space for a specific time period
-Food trucks are associated with Directus users (owners)
-
-This schema supports a system where food truck owners (users) can book specific spaces for their trucks for defined time periods. The system includes location data for the spaces, making it suitable for map-based applications.
-
-## Backend authentication
-Please use directus auth and inherit the directus tokens.
-- Login page at /auth/login (should create backend call to directus login)
-- No signup page
-- Password request at /auth/password-request,  should trigger backend call // POST /auth/password/request
-{
-  "email": "user@email.com",
-  "reset_url": process.env.APP_URL + "/auth/password-reset"
-}
-
-- Password reset at /auth/password-reset (you will get token as url parametar (this should trigger backend call // POST /auth/password/reset
-{
-  "token": "token",
-  "password": "THE NEW PASSWORD"
-})
+## Code Conventions
+- Use `@/` absolute imports
+- Use `cn()` utility from `lib/utils.ts` for Tailwind class merging
+- Named exports for components
+- UI primitives in `/components/ui`, feature components in `/components`
+- Server actions return `{ success: boolean, data?: T, error?: string }`
