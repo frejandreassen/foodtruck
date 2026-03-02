@@ -516,6 +516,23 @@ export async function createBooking(bookingData: {
       }
     }
 
+    // Check for overlapping bookings on the same space and time slot
+    const overlapCheck = await directusServer.checkOverlappingBookings(
+      bookingData.space,
+      bookingData.start,
+      bookingData.end,
+      token
+    )
+
+    if (overlapCheck.data && overlapCheck.data.length > 0) {
+      const existingBooking = overlapCheck.data[0]
+      const bookedBy = existingBooking.foodtruck?.name || 'en annan foodtruck'
+      return {
+        success: false,
+        error: `Denna plats är redan bokad av ${bookedBy} för den valda tiden`
+      }
+    }
+
     // Create the booking
     const response = await directusServer.createBooking(bookingData, token)
     

@@ -48,6 +48,12 @@ EnvProvider → QueryProvider → AuthProvider → MapsProvider
 - Food trucks and spaces have many bookings
 - Each booking links one food truck to one space for a time period
 
+### Deployment
+- Hosted on **Vercel** under Frej Andreassen's account (`frejandreassen`)
+- Production URL: `foodtruck-zeta.vercel.app`
+- Deploys from `frejandreassen/foodtruck` repo (origin) — our fork is `cryptonicsurfer/foodtruck`
+- To deploy changes: create PR from fork to origin/main, ask Frej to merge
+
 ### Environment Variables
 - `DIRECTUS_URL` / `NEXT_PUBLIC_DIRECTUS_URL` - Directus backend URL
 - `APP_URL` / `NEXT_PUBLIC_APP_URL` - Application URL (for password reset links)

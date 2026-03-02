@@ -371,6 +371,31 @@ export const directusServer = {
   },
   
   /**
+   * Check for overlapping bookings on the same space and time period
+   */
+  async checkOverlappingBookings(
+    spaceId: string | number,
+    start: string,
+    end: string,
+    token: string
+  ): Promise<{ data: any[] }> {
+    const encodedStart = encodeURIComponent(start);
+    const encodedEnd = encodeURIComponent(end);
+
+    // Find bookings for the same space where the time overlaps:
+    // A booking overlaps if it starts before our end AND ends after our start
+    return directusRequest<{ data: any[] }>(
+      `/items/foodtruck_bookings?filter[space][_eq]=${spaceId}&filter[start][_lt]=${encodedEnd}&filter[end][_gt]=${encodedStart}&fields=id,foodtruck.name,start,end`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  },
+
+  /**
    * Create a new booking
    */
   async createBooking(bookingData: {
