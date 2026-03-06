@@ -233,6 +233,10 @@ export default function BookingPage() {
     const formattedEnd = formatTimeString(timeSlot.end);
     const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num));
     timeSlotEnd.setHours(endHours, endMinutes, 0, 0);
+    // If end time is before start time, the slot spans midnight
+    if (endHours < startHours) {
+      timeSlotEnd.setDate(timeSlotEnd.getDate() + 1);
+    }
 
     return bookings.some(booking => {
       try {
@@ -242,20 +246,14 @@ export default function BookingPage() {
 
         const bookingStart = new Date(booking.start);
         const bookingEnd = new Date(booking.end);
-
-        // Ensure comparison happens correctly even across day boundaries if necessary
-        // This basic check assumes bookings and slots are within the same day context
-        // as handled by the date selection.
+        // Handle overnight bookings where end is before start
+        if (bookingEnd <= bookingStart) {
+          bookingEnd.setDate(bookingEnd.getDate() + 1);
+        }
 
         return (
           booking.space.id === spaceId &&
-          (
-            // CORRECTED OVERLAP CHECK:
-            // Booking overlaps if it starts BEFORE the slot ends
-            // AND ends AFTER the slot starts.
-            // Using strict inequality prevents adjacent slots from being marked.
-            bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
-          )
+          (bookingStart < timeSlotEnd && bookingEnd > timeSlotStart)
         );
       } catch (error) {
         console.error("Error processing booking in isSpaceBooked:", error, booking);
@@ -281,6 +279,10 @@ export default function BookingPage() {
     const formattedEnd = formatTimeString(timeSlot.end);
     const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num));
     timeSlotEnd.setHours(endHours, endMinutes, 0, 0);
+    // If end time is before start time, the slot spans midnight
+    if (endHours < startHours) {
+      timeSlotEnd.setDate(timeSlotEnd.getDate() + 1);
+    }
 
     return bookings.find(booking => {
       try {
@@ -290,13 +292,14 @@ export default function BookingPage() {
 
         const bookingStart = new Date(booking.start);
         const bookingEnd = new Date(booking.end);
+        // Handle overnight bookings where end is before start
+        if (bookingEnd <= bookingStart) {
+          bookingEnd.setDate(bookingEnd.getDate() + 1);
+        }
 
         return (
           booking.space.id === spaceId &&
-          (
-            // CORRECTED OVERLAP CHECK (same as in isSpaceBooked):
-            bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
-          )
+          (bookingStart < timeSlotEnd && bookingEnd > timeSlotStart)
         );
       } catch (error) {
         console.error("Error processing booking in getBookingDetails:", error, booking);
@@ -417,6 +420,10 @@ export default function BookingPage() {
         endMinutes,
         0
       ))
+      // If end time is before start time, the slot spans midnight — add one day
+      if (endHours < startHours) {
+        endDate.setUTCDate(endDate.getUTCDate() + 1)
+      }
       
       // Create booking data
       const bookingData = {

@@ -150,6 +150,10 @@ export default function SpaceDetailsPage() {
     const formattedEnd = formatTimeString(timeSlot.end)
     const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
     timeSlotEnd.setHours(endHours, endMinutes, 0, 0)
+    // If end time is before start time, the slot spans midnight
+    if (endHours < startHours) {
+      timeSlotEnd.setDate(timeSlotEnd.getDate() + 1)
+    }
 
     return bookings.some(booking => {
       try {
@@ -163,9 +167,11 @@ export default function SpaceDetailsPage() {
 
         const bookingStart = new Date(booking.start)
         const bookingEnd = new Date(booking.end)
+        // Handle overnight bookings where end is before start
+        if (bookingEnd <= bookingStart) {
+          bookingEnd.setDate(bookingEnd.getDate() + 1)
+        }
 
-        // Booking overlaps if it starts before the slot ends
-        // AND ends after the slot starts
         return bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
       } catch (error) {
         console.error("Error processing booking in isTimeSlotBooked:", error, booking)
@@ -191,6 +197,10 @@ export default function SpaceDetailsPage() {
     const formattedEnd = formatTimeString(timeSlot.end)
     const [endHours, endMinutes] = formattedEnd.split(':').map(num => parseInt(num))
     timeSlotEnd.setHours(endHours, endMinutes, 0, 0)
+    // If end time is before start time, the slot spans midnight
+    if (endHours < startHours) {
+      timeSlotEnd.setDate(timeSlotEnd.getDate() + 1)
+    }
 
     return bookings.find(booking => {
       try {
@@ -204,6 +214,10 @@ export default function SpaceDetailsPage() {
 
         const bookingStart = new Date(booking.start)
         const bookingEnd = new Date(booking.end)
+        // Handle overnight bookings where end is before start
+        if (bookingEnd <= bookingStart) {
+          bookingEnd.setDate(bookingEnd.getDate() + 1)
+        }
 
         return bookingStart < timeSlotEnd && bookingEnd > timeSlotStart
       } catch (error) {
@@ -382,6 +396,10 @@ export default function SpaceDetailsPage() {
         endMinutes,
         0
       ))
+      // If end time is before start time, the slot spans midnight — add one day
+      if (endHours < startHours) {
+        endDate.setUTCDate(endDate.getUTCDate() + 1)
+      }
       console.log("UTC end date:", endDate.toISOString())
       
       // Create booking data
