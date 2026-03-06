@@ -487,6 +487,13 @@ export async function createBooking(bookingData: {
       }
     }
 
+    // Normalize end date: if end is before start, the slot spans midnight — add one day
+    const bookingEndDate = new Date(bookingData.end)
+    if (bookingEndDate <= bookingStartDate) {
+      bookingEndDate.setDate(bookingEndDate.getDate() + 1)
+      bookingData = { ...bookingData, end: bookingEndDate.toISOString() }
+    }
+
     // Check if the space is blocked for this date
     const bookingDate = bookingData.start.split('T')[0] // Extract YYYY-MM-DD
     const bookingHour = bookingStartDate.getHours()
